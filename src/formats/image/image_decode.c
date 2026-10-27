@@ -213,6 +213,9 @@ int qw_image_decode_page(const void *data,
         if (jpeg_rc != QW_STATUS_OK) return jpeg_rc;
         jpeg_parsed = 1;
     }
+    if (qw_jp2_probe(data, size)) {
+        return qw_jp2_decode_page(data, size, out_page);
+    }
     if (qw_psd_probe(data, size)) {
         return qw_psd_decode_page(data, size, out_page);
     }

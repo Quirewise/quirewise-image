@@ -209,6 +209,7 @@ int qw_apng_probe(const void *data, size_t size);
 int qw_exr_probe(const void *data, size_t size);
 int qw_exr_decode_page(const void *data, size_t size, QwPageImage *out_page);
 int qw_jp2_probe(const void *data, size_t size);
+int qw_jp2_decode_page(const void *data, size_t size, QwPageImage *out_page);
 int qw_avif_probe(const void *data, size_t size);
 int qw_avif_decode_page(const void *data, size_t size,
                         QwPageImage *out_page);

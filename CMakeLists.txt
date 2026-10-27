@@ -8,6 +8,7 @@ set(PKG_CONFIG_ARGN "--static")
 
 pkg_check_modules(QW_IMAGE_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL
     libjpeg zlib libwebp libwebpdemux)
+pkg_check_modules(QW_JP2_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL libopenjp2)
 
 set(QW_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -25,6 +26,16 @@ target_include_directories(quirewise_image_stb PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     PRIVATE ${QW_INCLUDE_DIRS})
+
+add_library(quirewise_image_jp2 STATIC src/formats/image/jp2_codec.c)
+set_target_properties(quirewise_image_jp2 PROPERTIES EXPORT_NAME ImageJP2 POSITION_INDEPENDENT_CODE ON)
+target_compile_features(quirewise_image_jp2 PUBLIC c_std_11)
+target_compile_definitions(quirewise_image_jp2 PRIVATE OPJ_STATIC)
+target_include_directories(quirewise_image_jp2 PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
+    PRIVATE ${QW_INCLUDE_DIRS})
+target_link_libraries(quirewise_image_jp2 PRIVATE PkgConfig::QW_JP2_BACKENDS)
 
 set(QW_IMAGE_SOURCES
     src/formats/image/optional_codec_stubs.c
@@ -70,7 +81,7 @@ target_include_directories(quirewise_image_decode PUBLIC
     PRIVATE ${QW_INCLUDE_DIRS})
 target_compile_definitions(quirewise_image_decode PRIVATE USE_ZLIB HAVE_STRDUP OPJ_STATIC)
 target_link_libraries(quirewise_image_decode PRIVATE
-    quirewise_image_stb PkgConfig::QW_IMAGE_BACKENDS
+    quirewise_image_jp2 quirewise_image_stb PkgConfig::QW_IMAGE_BACKENDS
     "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
 
 add_library(quirewise_image_folder STATIC
@@ -107,7 +118,7 @@ set_target_properties(quirewise_image_bundle PROPERTIES EXPORT_NAME Image)
 target_link_libraries(quirewise_image_bundle INTERFACE
     quirewise_image_decode quirewise_image_folder quirewise_image_processing)
 
-install(TARGETS quirewise_image_decode quirewise_image_stb
+install(TARGETS quirewise_image_decode quirewise_image_jp2 quirewise_image_stb
                 quirewise_image_folder quirewise_image_processing quirewise_image_bundle
     EXPORT QuirewiseImageTargets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
