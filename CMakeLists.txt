@@ -19,14 +19,6 @@ set(QW_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
     "${CMAKE_CURRENT_SOURCE_DIR}/third_party/aes")
 
-add_library(quirewise_image_stb STATIC src/formats/image/stb_image_impl.c)
-set_target_properties(quirewise_image_stb PROPERTIES EXPORT_NAME ImageSTB POSITION_INDEPENDENT_CODE ON)
-target_compile_features(quirewise_image_stb PUBLIC c_std_11)
-target_include_directories(quirewise_image_stb PUBLIC
-    "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb>"
-    "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
-    PRIVATE ${QW_INCLUDE_DIRS})
-
 add_library(quirewise_image_jp2 STATIC src/formats/image/jp2_codec.c)
 set_target_properties(quirewise_image_jp2 PROPERTIES EXPORT_NAME ImageJP2 POSITION_INDEPENDENT_CODE ON)
 target_compile_features(quirewise_image_jp2 PUBLIC c_std_11)
@@ -38,6 +30,7 @@ target_link_libraries(quirewise_image_jp2 PRIVATE PkgConfig::QW_JP2_BACKENDS)
 
 set(QW_IMAGE_SOURCES
     src/formats/image/optional_codec_stubs.c
+    src/formats/image/stb_image_impl.c
     src/formats/image/apng_probe.c
     src/formats/image/bmp_decoder.c
     src/formats/image/dcm_codec.c
@@ -80,7 +73,7 @@ target_include_directories(quirewise_image_decode PUBLIC
     PRIVATE ${QW_INCLUDE_DIRS})
 target_compile_definitions(quirewise_image_decode PRIVATE USE_ZLIB HAVE_STRDUP)
 target_link_libraries(quirewise_image_decode PRIVATE
-    quirewise_image_jp2 quirewise_image_stb PkgConfig::QW_IMAGE_BACKENDS
+    quirewise_image_jp2 PkgConfig::QW_IMAGE_BACKENDS
     "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
 
 add_library(quirewise_image_folder STATIC
@@ -117,14 +110,13 @@ set_target_properties(quirewise_image_bundle PROPERTIES EXPORT_NAME Image)
 target_link_libraries(quirewise_image_bundle INTERFACE
     quirewise_image_decode quirewise_image_folder quirewise_image_processing)
 
-install(TARGETS quirewise_image_decode quirewise_image_jp2 quirewise_image_stb
+install(TARGETS quirewise_image_decode quirewise_image_jp2
                 quirewise_image_folder quirewise_image_processing quirewise_image_bundle
     EXPORT QuirewiseImageTargets
     ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
     RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(DIRECTORY include/ DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
-install(FILES third_party/stb/stb_image.h DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(EXPORT QuirewiseImageTargets
     FILE QuirewiseImageTargets.cmake
     NAMESPACE Quirewise::
