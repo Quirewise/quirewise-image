@@ -30,7 +30,6 @@ target_include_directories(quirewise_image_stb PUBLIC
 add_library(quirewise_image_jp2 STATIC src/formats/image/jp2_codec.c)
 set_target_properties(quirewise_image_jp2 PROPERTIES EXPORT_NAME ImageJP2 POSITION_INDEPENDENT_CODE ON)
 target_compile_features(quirewise_image_jp2 PUBLIC c_std_11)
-target_compile_definitions(quirewise_image_jp2 PRIVATE OPJ_STATIC)
 target_include_directories(quirewise_image_jp2 PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
@@ -79,7 +78,7 @@ target_include_directories(quirewise_image_decode PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     PRIVATE ${QW_INCLUDE_DIRS})
-target_compile_definitions(quirewise_image_decode PRIVATE USE_ZLIB HAVE_STRDUP OPJ_STATIC)
+target_compile_definitions(quirewise_image_decode PRIVATE USE_ZLIB HAVE_STRDUP)
 target_link_libraries(quirewise_image_decode PRIVATE
     quirewise_image_jp2 quirewise_image_stb PkgConfig::QW_IMAGE_BACKENDS
     "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
