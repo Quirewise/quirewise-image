@@ -13,6 +13,93 @@
 
 typedef struct QwWebPAnimation QwWebPAnimation;
 
+typedef enum QwWebPCodec {
+    QW_WEBP_CODEC_VP8 = 1,
+    QW_WEBP_CODEC_VP8L = 2
+} QwWebPCodec;
+
+typedef struct QwWebPFrame {
+    const uint8_t *alpha_data;
+    size_t alpha_size;
+    const uint8_t *image_data;
+    size_t image_size;
+    uint32_t x;
+    uint32_t y;
+    uint32_t width;
+    uint32_t height;
+    uint32_t duration_ms;
+    QwWebPCodec codec;
+    uint8_t blend;
+    uint8_t dispose;
+    uint8_t has_alpha;
+} QwWebPFrame;
+
+typedef struct QwWebPDocument {
+    QwWebPFrame *frames;
+    size_t frame_count;
+    uint32_t width;
+    uint32_t height;
+    uint32_t background_argb;
+    uint16_t loop_count;
+    uint8_t has_animation;
+} QwWebPDocument;
+
+typedef struct QwWebPVP8Header {
+    uint32_t width;
+    uint32_t height;
+    uint32_t first_partition_size;
+    size_t first_partition_offset;
+    uint8_t version;
+    uint8_t show_frame;
+    uint8_t horizontal_scale;
+    uint8_t vertical_scale;
+    uint8_t color_space;
+    uint8_t clamp_type;
+    uint8_t segmentation_enabled;
+    uint8_t segmentation_map_updated;
+    uint8_t segmentation_data_updated;
+    uint8_t segmentation_feature_mode;
+    int8_t segment_quantizer_delta[4];
+    int8_t segment_filter_delta[4];
+    uint8_t segment_map_probability[3];
+    uint8_t loop_filter_type;
+    uint8_t loop_filter_level;
+    uint8_t loop_filter_sharpness;
+    uint8_t loop_filter_delta_enabled;
+    int8_t reference_filter_delta[4];
+    int8_t mode_filter_delta[4];
+    uint8_t token_partition_count;
+    uint8_t base_quantizer;
+    int8_t quantizer_delta[5];
+    uint8_t skip_coeff_enabled;
+    uint8_t skip_coeff_probability;
+    uint8_t coefficient_probabilities[4][8][3][11];
+    size_t first_partition_position;
+    uint32_t first_partition_range;
+    uint32_t first_partition_value;
+    uint8_t first_partition_bit_count;
+} QwWebPVP8Header;
+
+typedef struct QwWebPVP8Macroblock {
+    uint8_t segment_id;
+    uint8_t skip_coeff;
+    uint8_t y_mode;
+    uint8_t uv_mode;
+    uint8_t b_mode[16];
+} QwWebPVP8Macroblock;
+
+typedef int (*QwWebPVP8MacroblockConsumer)(
+    void *context,
+    size_t macroblock_x,
+    size_t macroblock_y,
+    const QwWebPVP8Macroblock *macroblock,
+    const int16_t coefficients[25][16]);
+
+typedef struct QwWebPVP8TokenPartition {
+    const uint8_t *data;
+    size_t size;
+} QwWebPVP8TokenPartition;
+
 enum {
     QW_ICON_CONTAINER_ICO = 1,
     QW_ICON_CONTAINER_CUR = 2
@@ -52,6 +139,62 @@ int qw_webp_parse(const void *data,
                   uint32_t *out_width,
                   uint32_t *out_height,
                   int *out_has_animation);
+int qw_webp_document_parse(const void *data,
+                           size_t size,
+                           QwWebPDocument *out_document);
+void qw_webp_document_clear(QwWebPDocument *document);
+int qw_webp_vp8l_decode(const uint8_t *data,
+                        size_t size,
+                        uint32_t expected_width,
+                        uint32_t expected_height,
+                        uint8_t **out_rgba);
+int qw_webp_alpha_decode(const uint8_t *data,
+                         size_t size,
+                         uint32_t width,
+                         uint32_t height,
+                         uint8_t **out_alpha);
+int qw_webp_vp8_parse_keyframe_header(const uint8_t *data,
+                                      size_t size,
+                                      uint32_t expected_width,
+                                      uint32_t expected_height,
+                                      QwWebPVP8Header *out_header);
+int qw_webp_vp8_decode_macroblock_modes(
+    const uint8_t *data,
+    size_t size,
+    const QwWebPVP8Header *header,
+    QwWebPVP8Macroblock **out_macroblocks,
+    size_t *out_macroblock_count);
+int qw_webp_vp8_decode_coefficients(
+    const uint8_t *data,
+    size_t size,
+    const QwWebPVP8Header *header,
+    const QwWebPVP8Macroblock *macroblocks,
+    size_t macroblock_count,
+    QwWebPVP8MacroblockConsumer consumer,
+    void *consumer_context);
+int qw_webp_vp8_parse_token_partitions(
+    const uint8_t *data,
+    size_t size,
+    const QwWebPVP8Header *header,
+    QwWebPVP8TokenPartition out_partitions[8],
+    size_t *out_partition_count);
+int qw_webp_vp8_decode_token_coefficients(
+    const uint8_t *data,
+    size_t size,
+    const QwWebPVP8Header *header,
+    const QwWebPVP8Macroblock *macroblocks,
+    size_t macroblock_count);
+int qw_webp_vp8_decode_rgba(const uint8_t *data,
+                            size_t size,
+                            uint32_t expected_width,
+                            uint32_t expected_height,
+                            uint8_t **out_rgba);
+int qw_webp_vp8_bpred_above_right(const uint8_t *plane,
+                                  size_t stride,
+                                  size_t macroblock_columns,
+                                  size_t macroblock_x,
+                                  size_t macroblock_y,
+                                  uint8_t out_samples[4]);
 int qw_gif_probe(const void *data, size_t size);
 int qw_gif_decode_page(const void *data, size_t size, QwPageImage *out_page);
 int qw_jpeg_probe(const void *data, size_t size);
@@ -209,6 +352,14 @@ int qw_apng_probe(const void *data, size_t size);
 int qw_exr_probe(const void *data, size_t size);
 int qw_exr_decode_page(const void *data, size_t size, QwPageImage *out_page);
 int qw_jp2_probe(const void *data, size_t size);
+int qw_jp2_validate_structure(const void *data, size_t size);
+int qw_jp2_decode_internal_gray8(const void *data,
+                                 size_t size,
+                                 QwPageImage *out_page);
+int qw_jp2_decode_internal_gray8_reduced(const void *data,
+                                         size_t size,
+                                         uint8_t resolution_reduction,
+                                         QwPageImage *out_page);
 int qw_jp2_decode_page(const void *data, size_t size, QwPageImage *out_page);
 int qw_avif_probe(const void *data, size_t size);
 int qw_avif_decode_page(const void *data, size_t size,
@@ -238,6 +389,9 @@ int qw_webp_animation_create_borrowed(const void *data, size_t size,
                                      size_t *out_frame_count);
 int qw_webp_animation_read(QwWebPAnimation *animation, size_t index,
                            QwPageImage *out_page);
+int qw_webp_animation_frame_duration(const QwWebPAnimation *animation,
+                                     size_t index,
+                                     uint32_t *out_duration_ms);
 void qw_webp_animation_free(QwWebPAnimation *animation);
 
 #endif

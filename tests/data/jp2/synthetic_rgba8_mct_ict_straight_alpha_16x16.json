@@ -1,0 +1,10 @@
+{
+    "fixture":  "synthetic_rgba8_mct_ict_straight_alpha_16x16",
+    "dimensions":  "16x16",
+    "components":  "4 unsigned 8-bit planar component arrays: R, G, B, straight opacity",
+    "encoder":  "OpenJPEG opj_compress 2.5.4",
+    "encoder_command":  "opj_compress -i INPUT.raw -o OUTPUT.jp2 -F 16,16,4,8,u -I -mct 1 -n 2 -r 1 -threads 1",
+    "jp2_edit":  "Inserted a cdef box under jp2h: components 0/1/2 are color associations 1/2/3 and component 3 is straight opacity type 1 association 0",
+    "reference":  "OpenJPEG opj_decompress 2.5.4 raw output uses planar component arrays; RGB24 golden composites its reconstructed component planes over white using (sample*alpha + 255*(255-alpha) + 127)/255",
+    "runtime_dependency":  "None; generated JP2 and RGB24 are fixed test data"
+}

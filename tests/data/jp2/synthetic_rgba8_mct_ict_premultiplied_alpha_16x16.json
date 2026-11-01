@@ -1,0 +1,10 @@
+{
+    "fixture":  "synthetic_rgba8_mct_ict_premultiplied_alpha_16x16",
+    "dimensions":  "16x16",
+    "components":  "4 planar unsigned 8-bit components: premultiplied R/G/B and straight opacity",
+    "encoder":  "OpenJPEG opj_compress 2.5.4",
+    "encoder_command":  "opj_compress -i INPUT.raw -o OUTPUT.jp2 -F 16,16,4,8,u -I -mct 1 -n 2 -r 1 -threads 1",
+    "jp2_edit":  "Inserted cdef under jp2h: components 0/1/2 have Typ=0 associations 1/2/3, component 3 has Typ=2 premultiplied opacity association 0",
+    "reference":  "OpenJPEG opj_decompress 2.5.4 four-component planar raw output; RGB24 golden composites reconstructed premultiplied color over white with min(255, color + 255 - alpha)",
+    "runtime_dependency":  "None; generated JP2 and RGB24 are fixed test data"
+}

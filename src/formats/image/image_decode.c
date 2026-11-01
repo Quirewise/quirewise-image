@@ -4,32 +4,148 @@
 #include "quirewise/status.h"
 #include "stb_image.h"
 #include "tiff_decode.h"
-#include <webp/decode.h>
-#include <webp/demux.h>
-
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
 struct QwWebPAnimation {
-    const uint8_t *encoded;
     uint8_t *owned_encoded;
-    WebPAnimDecoder *decoder;
-    size_t frame_count;
+    QwWebPDocument document;
+    uint8_t *canvas;
     size_t next_frame;
     size_t pixel_count;
     size_t rgb_size;
+    size_t rgba_size;
     uint32_t width;
     uint32_t height;
 };
 
+/* Parse and decode every WebP frame through Quirewise-owned implementations. */
+static int webp_decode_frame(const QwWebPFrame *frame, uint8_t **out_rgba)
+{
+    uint8_t *decoded = NULL;
+    uint8_t *alpha = NULL;
+    size_t pixel_count;
+    int rc;
 
+    if (!frame || !out_rgba || !frame->image_data || !frame->image_size ||
+        !frame->width || !frame->height ||
+        (frame->codec != QW_WEBP_CODEC_VP8 &&
+         frame->codec != QW_WEBP_CODEC_VP8L)) {
+        return QW_STATUS_ERR_INVALID_ARGUMENT;
+    }
+    *out_rgba = NULL;
+    if (!qw_image_dimensions_within_limits(frame->width, frame->height))
+        return QW_STATUS_ERR_RESOURCE_LIMIT;
+    if (frame->codec == QW_WEBP_CODEC_VP8L) {
+        rc = qw_webp_vp8l_decode(frame->image_data, frame->image_size,
+                                 frame->width, frame->height, &decoded);
+    } else {
+        rc = qw_webp_vp8_decode_rgba(frame->image_data, frame->image_size,
+                                     frame->width, frame->height, &decoded);
+    }
+    if (rc != QW_STATUS_OK) return rc;
+    if (!decoded) return QW_STATUS_ERR_DECODE;
+    if (frame->alpha_data) {
+        if (!qw_checked_size_mul((size_t)frame->width,
+                                 (size_t)frame->height, &pixel_count)) {
+            free(decoded);
+            return QW_STATUS_ERR_RESOURCE_LIMIT;
+        }
+        rc = qw_webp_alpha_decode(frame->alpha_data, frame->alpha_size,
+                                  frame->width, frame->height, &alpha);
+        if (rc != QW_STATUS_OK) {
+            free(decoded);
+            free(alpha);
+            return rc;
+        }
+        for (size_t i = 0u; i < pixel_count; ++i)
+            decoded[i * 4u + 3u] = alpha[i];
+        free(alpha);
+    }
+    *out_rgba = decoded;
+    return QW_STATUS_OK;
+}
+
+static void webp_canvas_fill(QwWebPAnimation *animation)
+{
+    uint32_t argb = animation->document.background_argb;
+    uint8_t red = (uint8_t)(argb >> 16);
+    uint8_t green = (uint8_t)(argb >> 8);
+    uint8_t blue = (uint8_t)argb;
+    uint8_t alpha = (uint8_t)(argb >> 24);
+    for (size_t i = 0u; i < animation->pixel_count; ++i) {
+        animation->canvas[i * 4u] = red;
+        animation->canvas[i * 4u + 1u] = green;
+        animation->canvas[i * 4u + 2u] = blue;
+        animation->canvas[i * 4u + 3u] = alpha;
+    }
+}
+
+static void webp_canvas_fill_frame(QwWebPAnimation *animation,
+                                   const QwWebPFrame *frame)
+{
+    uint32_t argb = animation->document.background_argb;
+    uint8_t color[4] = {
+        (uint8_t)(argb >> 16), (uint8_t)(argb >> 8),
+        (uint8_t)argb, (uint8_t)(argb >> 24)
+    };
+    for (uint32_t y = 0u; y < frame->height; ++y) {
+        size_t start = ((size_t)(frame->y + y) * animation->width + frame->x) * 4u;
+        for (uint32_t x = 0u; x < frame->width; ++x) {
+            memcpy(animation->canvas + start + (size_t)x * 4u,
+                   color, sizeof(color));
+        }
+    }
+}
+
+static void webp_blend_pixel(uint8_t *destination, const uint8_t *source)
+{
+    uint32_t source_alpha = source[3];
+    uint32_t destination_alpha = destination[3];
+    uint32_t alpha_numerator = source_alpha * 255u +
+        destination_alpha * (255u - source_alpha);
+    if (!alpha_numerator) {
+        memset(destination, 0, 4u);
+        return;
+    }
+    for (size_t channel = 0u; channel < 3u; ++channel) {
+        uint32_t numerator = (uint32_t)source[channel] * source_alpha * 255u +
+            (uint32_t)destination[channel] * destination_alpha *
+                (255u - source_alpha);
+        destination[channel] = (uint8_t)(
+            (numerator + alpha_numerator / 2u) / alpha_numerator);
+    }
+    destination[3] = (uint8_t)((alpha_numerator + 127u) / 255u);
+}
+
+static void webp_canvas_composite_frame(QwWebPAnimation *animation,
+                                        const QwWebPFrame *frame,
+                                        const uint8_t *rgba)
+{
+    for (uint32_t y = 0u; y < frame->height; ++y) {
+        size_t destination_start =
+            ((size_t)(frame->y + y) * animation->width + frame->x) * 4u;
+        size_t source_start = (size_t)y * frame->width * 4u;
+        for (uint32_t x = 0u; x < frame->width; ++x) {
+            uint8_t *destination = animation->canvas + destination_start +
+                                   (size_t)x * 4u;
+            const uint8_t *source = rgba + source_start + (size_t)x * 4u;
+            if (!frame->has_alpha || frame->blend) {
+                memcpy(destination, source, 4u);
+            } else {
+                webp_blend_pixel(destination, source);
+            }
+        }
+    }
+}
 
 void qw_webp_animation_free(QwWebPAnimation *animation)
 {
     if (!animation) return;
-    if (animation->decoder) WebPAnimDecoderDelete(animation->decoder);
+    qw_webp_document_clear(&animation->document);
+    free(animation->canvas);
     free(animation->owned_encoded);
     free(animation);
 }
@@ -40,76 +156,85 @@ static int qw_webp_animation_create_impl(const void *data, size_t size,
                                          size_t *out_frame_count)
 {
     QwWebPAnimation *animation;
-    WebPAnimDecoderOptions options;
-    WebPAnimInfo info;
-    WebPData webp_data;
-    uint32_t parsed_width;
-    uint32_t parsed_height;
-    int has_animation;
-    int parse_rc;
+    QwWebPDocument document = {0};
     size_t pixel_count;
     size_t rgb_size;
-    if (!data || !size || !out_animation || !out_frame_count) {
+    size_t rgba_size;
+    size_t total_frame_pixels = 0u;
+    int rc;
+    if (!data || !size || !out_animation || !out_frame_count)
         return QW_STATUS_ERR_INVALID_ARGUMENT;
-    }
     *out_animation = NULL;
-    *out_frame_count = 0;
+    *out_frame_count = 0u;
     if (!qw_webp_probe(data, size)) return QW_STATUS_ERR_UNSUPPORTED;
-    parse_rc = qw_webp_parse(data, size, &parsed_width, &parsed_height,
-                             &has_animation);
-    if (parse_rc != QW_STATUS_OK) return parse_rc;
-    if (!has_animation) return QW_STATUS_ERR_UNSUPPORTED;
-    if (!qw_image_dimensions_within_limits(parsed_width, parsed_height)) {
+    rc = qw_webp_document_parse(data, size, &document);
+    if (rc != QW_STATUS_OK) return rc;
+    if (!document.has_animation) {
+        qw_webp_document_clear(&document);
+        return QW_STATUS_ERR_UNSUPPORTED;
+    }
+    if (!qw_image_dimensions_within_limits(document.width, document.height)) {
+        qw_webp_document_clear(&document);
         return QW_STATUS_ERR_RESOURCE_LIMIT;
     }
-    if (!WebPAnimDecoderOptionsInit(&options)) return QW_STATUS_ERR_UNSUPPORTED;
-    options.color_mode = MODE_RGBA;
-    options.use_threads = 1;
-    animation = (QwWebPAnimation *)calloc(1, sizeof(*animation));
-    if (!animation) return QW_STATUS_ERR_OUT_OF_MEMORY;
-    animation->encoded = (const uint8_t *)data;
+    for (size_t i = 0u; i < document.frame_count; ++i) {
+        size_t frame_pixels;
+        QwWebPFrame *frame = &document.frames[i];
+        if (!qw_image_dimensions_within_limits(frame->width, frame->height) ||
+            !qw_checked_size_mul((size_t)frame->width,
+                                 (size_t)frame->height, &frame_pixels) ||
+            frame_pixels > (size_t)1000000000u - total_frame_pixels) {
+            qw_webp_document_clear(&document);
+            return QW_STATUS_ERR_RESOURCE_LIMIT;
+        }
+        total_frame_pixels += frame_pixels;
+    }
+    animation = (QwWebPAnimation *)calloc(1u, sizeof(*animation));
+    if (!animation) {
+        qw_webp_document_clear(&document);
+        return QW_STATUS_ERR_OUT_OF_MEMORY;
+    }
     if (copy_encoded) {
         animation->owned_encoded = (uint8_t *)malloc(size);
         if (!animation->owned_encoded) {
+            qw_webp_document_clear(&document);
             free(animation);
             return QW_STATUS_ERR_OUT_OF_MEMORY;
         }
         memcpy(animation->owned_encoded, data, size);
-        animation->encoded = animation->owned_encoded;
+        qw_webp_document_clear(&document);
+        rc = qw_webp_document_parse(animation->owned_encoded, size,
+                                    &animation->document);
+        if (rc != QW_STATUS_OK) {
+            free(animation->owned_encoded);
+            free(animation);
+            return rc;
+        }
+    } else {
+        animation->document = document;
+        memset(&document, 0, sizeof(document));
     }
-    webp_data.bytes = animation->encoded;
-    webp_data.size = size;
-    animation->decoder = WebPAnimDecoderNew(&webp_data, &options);
-    if (!animation->decoder ||
-        !WebPAnimDecoderGetInfo(animation->decoder, &info) ||
-        !info.frame_count || !info.canvas_width || !info.canvas_height) {
-        qw_webp_animation_free(animation);
-        return QW_STATUS_ERR_DECODE;
-    }
-    if (info.canvas_width != parsed_width ||
-        info.canvas_height != parsed_height) {
-        qw_webp_animation_free(animation);
-        return QW_STATUS_ERR_FORMAT;
-    }
-    if (!qw_image_dimensions_within_limits(info.canvas_width,
-                                           info.canvas_height)) {
-        qw_webp_animation_free(animation);
-        return QW_STATUS_ERR_RESOURCE_LIMIT;
-    }
-    if (!qw_checked_size_mul((size_t)info.canvas_width,
-                               (size_t)info.canvas_height,
-                               &pixel_count) ||
+    if (!qw_checked_size_mul((size_t)animation->document.width,
+                             (size_t)animation->document.height,
+                             &pixel_count) ||
         pixel_count > SIZE_MAX / 4u ||
+        !qw_checked_size_mul(pixel_count, 4u, &rgba_size) ||
         !qw_checked_size_mul(pixel_count, 3u, &rgb_size)) {
         qw_webp_animation_free(animation);
         return QW_STATUS_ERR_FORMAT;
     }
-    animation->frame_count = info.frame_count;
-    animation->width = info.canvas_width;
-    animation->height = info.canvas_height;
+    animation->canvas = (uint8_t *)malloc(rgba_size ? rgba_size : 1u);
+    if (!animation->canvas) {
+        qw_webp_animation_free(animation);
+        return QW_STATUS_ERR_OUT_OF_MEMORY;
+    }
+    animation->width = animation->document.width;
+    animation->height = animation->document.height;
     animation->pixel_count = pixel_count;
     animation->rgb_size = rgb_size;
-    *out_frame_count = animation->frame_count;
+    animation->rgba_size = rgba_size;
+    webp_canvas_fill(animation);
+    *out_frame_count = animation->document.frame_count;
     *out_animation = animation;
     return QW_STATUS_OK;
 }
@@ -133,44 +258,59 @@ int qw_webp_animation_create_borrowed(const void *data, size_t size,
 int qw_webp_animation_read(QwWebPAnimation *animation, size_t index,
                            QwPageImage *out_page)
 {
-    uint8_t *rgba = NULL;
-    uint8_t *rgb = NULL;
-    size_t pixels;
+    uint8_t *rgb;
     size_t output_size;
-    int timestamp;
-    if (!animation || !out_page || index >= animation->frame_count) {
+    if (!animation || !out_page || index >= animation->document.frame_count)
         return QW_STATUS_ERR_INVALID_ARGUMENT;
-    }
-    pixels = animation->pixel_count;
     output_size = animation->rgb_size;
     memset(out_page, 0, sizeof(*out_page));
     if (index < animation->next_frame) {
-        WebPAnimDecoderReset(animation->decoder);
-        animation->next_frame = 0;
+        webp_canvas_fill(animation);
+        animation->next_frame = 0u;
     }
     while (animation->next_frame <= index) {
-        if (!WebPAnimDecoderGetNext(animation->decoder, &rgba, &timestamp) || !rgba) {
-            return QW_STATUS_ERR_DECODE;
+        size_t current = animation->next_frame;
+        QwWebPFrame *frame = &animation->document.frames[current];
+        uint8_t *rgba = NULL;
+        int rc;
+        if (current > 0u &&
+            animation->document.frames[current - 1u].dispose) {
+            webp_canvas_fill_frame(animation,
+                &animation->document.frames[current - 1u]);
         }
-        if (animation->next_frame == index) {
-            rgb = (uint8_t *)malloc(output_size ? output_size : 1u);
-            if (!rgb) return QW_STATUS_ERR_OUT_OF_MEMORY;
-            for (size_t i = 0; i < pixels; ++i) {
-                uint32_t alpha = rgba[i * 4u + 3u];
-                for (size_t channel = 0; channel < 3u; ++channel) {
-                    uint32_t color = rgba[i * 4u + channel];
-                    rgb[i * 3u + channel] = (uint8_t)(
-                        (color * alpha + 255u * (255u - alpha) + 127u) / 255u);
-                }
-            }
-        }
+        rc = webp_decode_frame(frame, &rgba);
+        if (rc != QW_STATUS_OK) return rc;
+        webp_canvas_composite_frame(animation, frame, rgba);
+        free(rgba);
         ++animation->next_frame;
+    }
+    rgb = (uint8_t *)malloc(output_size ? output_size : 1u);
+    if (!rgb) return QW_STATUS_ERR_OUT_OF_MEMORY;
+    for (size_t i = 0u; i < animation->pixel_count; ++i) {
+        uint32_t alpha = animation->canvas[i * 4u + 3u];
+        for (size_t channel = 0u; channel < 3u; ++channel) {
+            uint32_t color = animation->canvas[i * 4u + channel];
+            rgb[i * 3u + channel] = (uint8_t)(
+                (color * alpha + 255u * (255u - alpha) + 127u) / 255u);
+        }
     }
     out_page->data = rgb;
     out_page->size = output_size;
     out_page->kind = QW_PAGE_IMAGE_RGB24;
     out_page->width = animation->width;
     out_page->height = animation->height;
+    return QW_STATUS_OK;
+}
+
+int qw_webp_animation_frame_duration(const QwWebPAnimation *animation,
+                                     size_t index,
+                                     uint32_t *out_duration_ms)
+{
+    if (!animation || !out_duration_ms ||
+        index >= animation->document.frame_count) {
+        return QW_STATUS_ERR_INVALID_ARGUMENT;
+    }
+    *out_duration_ms = animation->document.frames[index].duration_ms;
     return QW_STATUS_OK;
 }
 
@@ -186,7 +326,6 @@ int qw_image_decode_page(const void *data,
     int decoded_by_webp = 0;
     uint32_t webp_width = 0u;
     uint32_t webp_height = 0u;
-    int webp_has_animation = 0;
     size_t pixel_count;
     size_t output_size;
     size_t output_channels;
@@ -303,15 +442,32 @@ int qw_image_decode_page(const void *data,
         return qw_pic_decode_page(data, size, out_page);
     }
     if (qw_webp_probe(data, size)) {
-        rc = qw_webp_parse(data, size, &webp_width, &webp_height,
-                           &webp_has_animation);
+        QwWebPDocument document = {0};
+        QwWebPFrame *frame;
+        rc = qw_webp_document_parse((const uint8_t *)data, size, &document);
         if (rc != QW_STATUS_OK) return rc;
-        if (webp_has_animation) return QW_STATUS_ERR_UNSUPPORTED;
-        if (!qw_image_dimensions_within_limits(webp_width, webp_height))
+        if (document.has_animation) {
+            qw_webp_document_clear(&document);
+            return QW_STATUS_ERR_UNSUPPORTED;
+        }
+        webp_width = document.width;
+        webp_height = document.height;
+        if (!qw_image_dimensions_within_limits(webp_width, webp_height)) {
+            qw_webp_document_clear(&document);
             return QW_STATUS_ERR_RESOURCE_LIMIT;
-        decoded = WebPDecodeRGBA((const uint8_t *)data, size, &width, &height);
+        }
+        frame = &document.frames[0];
+        {
+            uint8_t *webp_rgba = NULL;
+            rc = webp_decode_frame(frame, &webp_rgba);
+            qw_webp_document_clear(&document);
+            if (rc != QW_STATUS_OK) return rc;
+            decoded = webp_rgba;
+            width = (int)webp_width;
+            height = (int)webp_height;
+            decoded_by_webp = 1;
+        }
         channels = 4;
-        decoded_by_webp = 1;
     } else {
         /* JPEG structure is validated by the project parser above. stb_image
          * remains the pixel decoder, but does not select the input format. */
@@ -396,7 +552,7 @@ cleanup:
     free(pixels);
     if (decoded) {
         if (decoded_by_webp) {
-            WebPFree(decoded);
+            free(decoded);
         } else {
             stbi_image_free(decoded);
         }

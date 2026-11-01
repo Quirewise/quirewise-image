@@ -1,0 +1,69 @@
+{
+    "suite":  "ITU-T T.803 (V3, 02/2024)",
+    "profile":  "Profile 0",
+    "compliance_class":  "Class 0",
+    "test_codestream":  "t803_profile0_p0_11.j2k",
+    "reference_image":  "t803_profile0_p0_11_class0.pgx",
+    "source_archive":  ".tmp/quirewise-agent-evidence/M2-06/M2-02/t803-v3/T.803v3_15444-4ed4-ElecAtt-codestreams.zip",
+    "source_archive_sha256":  "ac04b52e1fe38404912036c14f215099ea9a785f38644fbe76ae8f3d1523c86d",
+    "source_members":  {
+                           "codestream":  "files/codestreams_profile0/p0_11.j2k",
+                           "reference":  "files/reference_class0_profile0/c0p0_11.pgx"
+                       },
+    "codestream_sha256":  "d20d8a13b570ef4adb0c8d4166568b043d00124c2db652ce7f78d85ac1d77b62",
+    "reference_sha256":  "4a4457e31466d9a78d332fea16237da57cd4b2f3d4fa6dee0074fa568b282765",
+    "dimensions":  [
+                       128,
+                       1
+                   ],
+    "component":  {
+                      "count":  1,
+                      "depth_bits":  8,
+                      "signed":  false,
+                      "sampling":  [
+                                       1,
+                                       1
+                                   ]
+                  },
+    "tile":  {
+                 "count":  1,
+                 "origin":  [
+                                0,
+                                0
+                            ],
+                 "dimensions":  [
+                                    128,
+                                    128
+                                ]
+             },
+    "coding":  {
+                   "transform":  "reversible 5/3",
+                   "decomposition_levels":  0,
+                   "layers":  1,
+                   "progression":  "LRCP",
+                   "multiple_component_transformation":  "none",
+                   "sop":  false,
+                   "eph":  true,
+                   "code_block_dimensions":  [
+                                                 64,
+                                                 64
+                                             ],
+                   "code_block_style":  [
+                                            "segmentation symbols"
+                                        ],
+                   "precinct_size_exponents":  [
+                                                   7,
+                                                   1
+                                               ]
+               },
+    "quantization":  {
+                         "style":  "none (reversible)",
+                         "guard_bits":  3
+                     },
+    "pgx_header":  "PG ML + 8 128 1\n",
+    "observed":  {
+                     "structural_validation":  "PASS",
+                     "direct_internal_decode":  "PASS: exact 128/128 samples; peak error 0; MSE 0",
+                     "normal_dispatch":  "PASS: exact 128/128 samples; peak error 0; MSE 0"
+                 }
+}

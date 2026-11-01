@@ -1,0 +1,146 @@
+{
+  "suite": "ITU-T T.803 (V3, 02/2024), Class 0 Profile 0 / Class 1 reference",
+  "required_capabilities": "JPEG 2000 Profile 0",
+  "test_codestream": "t803_profile0_p0_03.j2k",
+  "class1_reference_image": "t803_profile0_p0_03_class1.pgx",
+  "source_archive": ".tmp/quirewise-agent-evidence/M2-06/M2-02/t803-v3/T.803v3_15444-4ed4-ElecAtt-codestreams.zip",
+  "source_archive_sha256": "ac04b52e1fe38404912036c14f215099ea9a785f38644fbe76ae8f3d1523c86d",
+  "source_members": {
+    "codestream": "files/codestreams_profile0/p0_03.j2k",
+    "description": "files/descriptions_profile0/p0_03syntax.txt",
+    "class0_references": [
+      "files/reference_class0_profile0/c0p0_03r0.pgx",
+      "files/reference_class0_profile0/c0p0_03r1.pgx"
+    ],
+    "class1_reference": "files/reference_class1_profile0/c1p0_03-0.pgx"
+  },
+  "codestream_sha256": "0aa26db75e8414d554e1fa93a0c7e101f16bb203f1fe06983fdd0c01fa61ddee",
+  "class1_reference_sha256": "edbdfc559b314d6ec3b3f75d94c50ba2b65040cf02ef0017a97ba92e9fedaa86",
+  "dimensions": [
+    256,
+    256
+  ],
+  "component": {
+    "count": 1,
+    "depth_bits": 4,
+    "signed": true,
+    "sampling": [
+      1,
+      1
+    ]
+  },
+  "tile": {
+    "count": 4,
+    "grid": [
+      2,
+      2
+    ],
+    "dimensions": [
+      128,
+      128
+    ],
+    "origin": [
+      0,
+      0
+    ]
+  },
+  "coding": {
+    "transform": "reversible 5/3",
+    "decomposition_levels": 1,
+    "layers": 8,
+    "progression": "PCRL with POC progression change",
+    "multiple_component_transformation": "none",
+    "sop": true,
+    "eph": false,
+    "code_block_dimensions": [
+      64,
+      64
+    ]
+  },
+  "quantization": {
+    "qcd_style": "scalar derived",
+    "qcc_component": 0,
+    "qcc_style": "none (reversible)",
+    "guard_bits": 2
+  },
+  "region_of_interest": {
+    "component": 0,
+    "style": "implicit",
+    "shift": 7
+  },
+  "other_markers": [
+    "CRG",
+    "TLM"
+  ],
+  "class0_references": [
+    {
+      "file": "c0p0_03r0.pgx",
+      "reduction": 0,
+      "dimensions": [
+        128,
+        128
+      ],
+      "signed_bits": 4,
+      "peak_error": 0,
+      "mse": 0
+    },
+    {
+      "file": "c0p0_03r1.pgx",
+      "reduction": 1,
+      "dimensions": [
+        128,
+        128
+      ],
+      "signed_bits": 4,
+      "peak_error": 0,
+      "mse": 0
+    }
+  ],
+  "class1_reference": {
+    "file": "c1p0_03-0.pgx",
+    "reduction": 0,
+    "dimensions": [
+      256,
+      256
+    ],
+    "signed_bits": 4,
+    "peak_error": 0,
+    "mse": 0,
+    "pgx_header": "PG ML -4 256 256\\n"
+  },
+  "public_output_mapping": "For signed 4-bit sample s in [-8, 7], map round((s + 8) * 255 / 15) to Gray8.",
+  "duplicate_alias": {
+    "codestream_member": "files/codestreams_profile0/p0_15.j2k",
+    "codestream_sha256": "0aa26db75e8414d554e1fa93a0c7e101f16bb203f1fe06983fdd0c01fa61ddee",
+    "class1_reference_member": "files/reference_class1_profile0/c1p0_15-0.pgx",
+    "class1_reference_sha256": "edbdfc559b314d6ec3b3f75d94c50ba2b65040cf02ef0017a97ba92e9fedaa86",
+    "note": "p0_15 duplicates p0_03 byte-for-byte; no duplicate fixture is stored."
+  },
+  "observed": {
+    "structural_validation": "PASS: current packet validation includes the implicit RGN shift in zero-bitplane bounds.",
+    "direct_internal_decode": "UNSUPPORTED: current eligibility excludes signed samples, multiple tiles, and component QCC; inverse ROI handling is not implemented.",
+    "normal_dispatch": "PASS: exact 65536/65536 samples after mapping official signed-4-bit Class 1 PGX values from [-8, 7] to Gray8."
+  },
+  "verification": {
+    "focused_test": "quirewise_image_jp2_structure",
+    "focused_test_result": "PASS",
+    "dispatch_mapping_samples_matched": 65536,
+    "dispatch_mapping_samples_total": 65536,
+    "full_image_ctest": {
+      "windows_mingw64_release": {
+        "passed": 10,
+        "total": 10
+      },
+      "ubuntu_f_release": {
+        "passed": 10,
+        "total": 10
+      },
+      "ubuntu_f_asan_ubsan": {
+        "passed": 10,
+        "total": 10,
+        "sanitizer_diagnostics": false
+      }
+    },
+    "verified_at_utc": "2026-10-30T17:21:03Z"
+  }
+}

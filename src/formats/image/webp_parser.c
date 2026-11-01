@@ -2,6 +2,7 @@
 
 #include "../../core/byte_utils.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 typedef struct QwWebPChunk {
@@ -10,6 +11,8 @@ typedef struct QwWebPChunk {
     size_t next;
     uint32_t type;
 } QwWebPChunk;
+
+enum { QW_WEBP_MAX_FRAMES = 4096u };
 
 static uint32_t webp_read_u24_le(const uint8_t *bytes)
 {
@@ -116,7 +119,8 @@ static int webp_parse_frame(const uint8_t *data,
                             size_t size,
                             uint32_t canvas_width,
                             uint32_t canvas_height,
-                            int *out_alpha)
+                            int *out_alpha,
+                            QwWebPFrame *out_frame)
 {
     uint32_t x;
     uint32_t y;
@@ -129,6 +133,7 @@ static int webp_parse_frame(const uint8_t *data,
     int seen_unknown = 0;
     uint32_t image_width = 0u;
     uint32_t image_height = 0u;
+    QwWebPFrame parsed_frame = {0};
 
     if (!data || size < 16u || !out_alpha) return 0;
     x = webp_read_u24_le(data) * 2u;
@@ -140,6 +145,13 @@ static int webp_parse_frame(const uint8_t *data,
         width > canvas_width - x || height > canvas_height - y) {
         return 0;
     }
+    parsed_frame.x = x;
+    parsed_frame.y = y;
+    parsed_frame.width = width;
+    parsed_frame.height = height;
+    parsed_frame.duration_ms = webp_read_u24_le(data + 12u);
+    parsed_frame.blend = (uint8_t)((flags >> 1) & 1u);
+    parsed_frame.dispose = (uint8_t)(flags & 1u);
     while (position < size) {
         QwWebPChunk chunk;
         int image_alpha = 0;
@@ -152,6 +164,8 @@ static int webp_parse_frame(const uint8_t *data,
             if (seen_alpha || seen_image || !webp_alpha_chunk_valid(&chunk))
                 return 0;
             seen_alpha = 1;
+            parsed_frame.alpha_data = chunk.data;
+            parsed_frame.alpha_size = chunk.size;
         } else if (chunk.type == webp_fourcc("VP8 ")) {
             if (seen_image ||
                 !webp_vp8_dimensions(chunk.data, chunk.size,
@@ -159,6 +173,9 @@ static int webp_parse_frame(const uint8_t *data,
                 return 0;
             }
             seen_image = 1;
+            parsed_frame.codec = QW_WEBP_CODEC_VP8;
+            parsed_frame.image_data = chunk.data;
+            parsed_frame.image_size = chunk.size;
         } else if (chunk.type == webp_fourcc("VP8L")) {
             if (seen_image || seen_alpha ||
                 !webp_vp8l_dimensions(chunk.data, chunk.size,
@@ -168,6 +185,9 @@ static int webp_parse_frame(const uint8_t *data,
             }
             seen_image = 1;
             seen_alpha = image_alpha;
+            parsed_frame.codec = QW_WEBP_CODEC_VP8L;
+            parsed_frame.image_data = chunk.data;
+            parsed_frame.image_size = chunk.size;
         } else if (webp_is_known_chunk(chunk.type)) {
             return 0;
         } else {
@@ -177,7 +197,9 @@ static int webp_parse_frame(const uint8_t *data,
     }
     if (!seen_image || image_width != width || image_height != height)
         return 0;
+    parsed_frame.has_alpha = (uint8_t)(seen_alpha != 0);
     *out_alpha = seen_alpha;
+    if (out_frame) *out_frame = parsed_frame;
     return 1;
 }
 
@@ -218,6 +240,7 @@ int qw_webp_parse(const void *data,
     int image_is_vp8l = 0;
     int image_has_alpha = 0;
     int first_chunk = 1;
+    size_t frame_count = 0u;
 
     if (!qw_webp_probe(data, size) || !out_width || !out_height ||
         !out_has_animation) {
@@ -315,11 +338,15 @@ int qw_webp_parse(const void *data,
             seen_anim = 1;
         } else if (chunk.type == webp_fourcc("ANMF")) {
             int this_frame_alpha;
-            if (!seen_anim || !webp_parse_frame(chunk.data, chunk.size,
-                                                canvas_width, canvas_height,
-                                                &this_frame_alpha)) {
+            if (!seen_anim || frame_count >= QW_WEBP_MAX_FRAMES ||
+                !webp_parse_frame(chunk.data, chunk.size,
+                                  canvas_width, canvas_height,
+                                  &this_frame_alpha, NULL)) {
+                if (frame_count >= QW_WEBP_MAX_FRAMES)
+                    return QW_STATUS_ERR_RESOURCE_LIMIT;
                 return QW_STATUS_ERR_FORMAT;
             }
+            ++frame_count;
             seen_frame = 1;
             frame_alpha |= this_frame_alpha;
         }
@@ -361,4 +388,135 @@ int qw_webp_parse(const void *data,
     *out_height = canvas_height;
     *out_has_animation = seen_frame != 0;
     return QW_STATUS_OK;
+}
+
+void qw_webp_document_clear(QwWebPDocument *document)
+{
+    if (!document) return;
+    free(document->frames);
+    memset(document, 0, sizeof(*document));
+}
+
+int qw_webp_document_parse(const void *data,
+                           size_t size,
+                           QwWebPDocument *out_document)
+{
+    const uint8_t *bytes = (const uint8_t *)data;
+    uint32_t riff_size;
+    uint32_t parsed_width;
+    uint32_t parsed_height;
+    int parsed_animation;
+    size_t riff_end;
+    size_t position = 12u;
+    size_t frame_count = 0u;
+    size_t frame_index = 0u;
+    int rc;
+
+    if (!out_document) return QW_STATUS_ERR_INVALID_ARGUMENT;
+    memset(out_document, 0, sizeof(*out_document));
+    rc = qw_webp_parse(data, size, &parsed_width, &parsed_height,
+                       &parsed_animation);
+    if (rc != QW_STATUS_OK) return rc;
+    riff_size = qw_read_u32_le(bytes + 4u);
+    riff_end = (size_t)riff_size + 8u;
+    out_document->width = parsed_width;
+    out_document->height = parsed_height;
+    out_document->has_animation = (uint8_t)(parsed_animation != 0);
+
+    if (parsed_animation) {
+        while (position < riff_end) {
+            QwWebPChunk chunk;
+            if (!webp_read_chunk(bytes, riff_end, position, &chunk)) {
+                rc = QW_STATUS_ERR_FORMAT;
+                goto fail;
+            }
+            if (chunk.type == webp_fourcc("ANMF")) ++frame_count;
+            position = chunk.next;
+        }
+    } else {
+        frame_count = 1u;
+    }
+    if (frame_count == 0u || frame_count > QW_WEBP_MAX_FRAMES) {
+        rc = QW_STATUS_ERR_RESOURCE_LIMIT;
+        goto fail;
+    }
+    out_document->frames = (QwWebPFrame *)calloc(
+        frame_count, sizeof(*out_document->frames));
+    if (!out_document->frames) {
+        rc = QW_STATUS_ERR_OUT_OF_MEMORY;
+        goto fail;
+    }
+    out_document->frame_count = frame_count;
+
+    position = 12u;
+    while (position < riff_end) {
+        QwWebPChunk chunk;
+        if (!webp_read_chunk(bytes, riff_end, position, &chunk)) {
+            rc = QW_STATUS_ERR_FORMAT;
+            goto fail;
+        }
+        if (chunk.type == webp_fourcc("ANIM")) {
+            out_document->background_argb = qw_read_u32_le(chunk.data);
+            out_document->loop_count = qw_read_u16_le(chunk.data + 4u);
+        } else if (chunk.type == webp_fourcc("ANMF")) {
+            int frame_alpha;
+            if (frame_index >= frame_count ||
+                !webp_parse_frame(chunk.data, chunk.size,
+                                  parsed_width, parsed_height,
+                                  &frame_alpha,
+                                  &out_document->frames[frame_index])) {
+                rc = QW_STATUS_ERR_FORMAT;
+                goto fail;
+            }
+            ++frame_index;
+        } else if (!parsed_animation &&
+                   chunk.type == webp_fourcc("ALPH")) {
+            out_document->frames[0].alpha_data = chunk.data;
+            out_document->frames[0].alpha_size = chunk.size;
+            out_document->frames[0].has_alpha = 1u;
+        } else if (!parsed_animation &&
+                   chunk.type == webp_fourcc("VP8 ")) {
+            QwWebPFrame *frame = &out_document->frames[0];
+            frame->image_data = chunk.data;
+            frame->image_size = chunk.size;
+            frame->codec = QW_WEBP_CODEC_VP8;
+        } else if (!parsed_animation &&
+                   chunk.type == webp_fourcc("VP8L")) {
+            uint32_t image_width;
+            uint32_t image_height;
+            int has_alpha;
+            QwWebPFrame *frame = &out_document->frames[0];
+            if (!webp_vp8l_dimensions(chunk.data, chunk.size,
+                                     &image_width, &image_height,
+                                     &has_alpha)) {
+                rc = QW_STATUS_ERR_FORMAT;
+                goto fail;
+            }
+            frame->image_data = chunk.data;
+            frame->image_size = chunk.size;
+            frame->codec = QW_WEBP_CODEC_VP8L;
+            frame->has_alpha = (uint8_t)(has_alpha != 0);
+        }
+        position = chunk.next;
+    }
+    if (parsed_animation && frame_index != frame_count) {
+        rc = QW_STATUS_ERR_FORMAT;
+        goto fail;
+    }
+    if (!parsed_animation) {
+        QwWebPFrame *frame = &out_document->frames[0];
+        frame->width = parsed_width;
+        frame->height = parsed_height;
+        if (!frame->image_data ||
+            (frame->codec != QW_WEBP_CODEC_VP8 &&
+             frame->codec != QW_WEBP_CODEC_VP8L)) {
+            rc = QW_STATUS_ERR_FORMAT;
+            goto fail;
+        }
+    }
+    return QW_STATUS_OK;
+
+fail:
+    qw_webp_document_clear(out_document);
+    return rc;
 }

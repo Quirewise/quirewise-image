@@ -1,0 +1,47 @@
+{
+  "fixture": "gray97_openjpeg_32x24.jp2",
+  "reference": "gray97_openjpeg_32x24.gray",
+  "dimensions": [
+    32,
+    24
+  ],
+  "component": "unsigned 8-bit grayscale",
+  "codestream": {
+    "wavelet": "irreversible 9/7",
+    "quantization_style": 2,
+    "decomposition_levels": 2,
+    "encoder_options": {
+      "irreversible": true,
+      "quality_mode": "rates",
+      "quality_layers": [
+        1
+      ],
+      "num_resolutions": 3,
+      "progression": "LRCP"
+    },
+    "coding_style": {
+      "transform_identifier": 0,
+      "multiple_component_transform": 0,
+      "decomposition_levels": 2,
+      "quality_layers": 1,
+      "progression": "LRCP"
+    },
+    "quantization": {
+      "style": 2,
+      "guard_bits": 2,
+      "qcd_payload_hex": "425f5250055005504757d357d35762"
+    }
+  },
+  "source_pattern": "(x * 17 + y * 29 + (x * y) % 71) & 255",
+  "reference_decoder": {
+    "package": "Pillow",
+    "version": "10.2.0",
+    "codec": "OpenJPEG",
+    "codec_version": "2.5.0",
+    "operation": "decode JP2 and convert to 8-bit grayscale"
+  },
+  "jp2_bytes": 1033,
+  "reference_bytes": 768,
+  "reference_fnv1a64": "0x40996c6ad90d3a60",
+  "note": "Synthetic interoperability fixture; not an official T.803 conformance vector."
+}

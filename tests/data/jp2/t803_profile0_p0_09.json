@@ -1,0 +1,62 @@
+{
+  "suite": "ITU-T T.803 (V3, 02/2024)",
+  "profile": "Profile 0",
+  "compliance_class": "Class 1",
+  "test_codestream": "t803_profile0_p0_09.j2k",
+  "reference_image": "t803_profile0_p0_09_class1.pgx",
+  "source_archive": ".tmp/quirewise-agent-evidence/M2-06/M2-02/t803-v3/T.803v3_15444-4ed4-ElecAtt-codestreams.zip",
+  "source_archive_sha256": "ac04b52e1fe38404912036c14f215099ea9a785f38644fbe76ae8f3d1523c86d",
+  "source_members": {
+    "codestream": "files/codestreams_profile0/p0_09.j2k",
+    "reference": "files/reference_class1_profile0/c1p0_09-0.pgx"
+  },
+  "codestream_sha256": "409c62a227497e7f2fc7e49055c02530cce742b6b385800b8a5aa4ae5bfab1a4",
+  "reference_sha256": "174557fca48a83f7a474d2307984051326350266fec1acf623466e8f92bc8a29",
+  "dimensions": [
+    17,
+    37
+  ],
+  "component": {
+    "count": 1,
+    "depth_bits": 8,
+    "signed": false,
+    "sampling": [
+      1,
+      1
+    ]
+  },
+  "tile": {
+    "count": 1,
+    "origin": [
+      0,
+      0
+    ],
+    "dimensions": [
+      17,
+      37
+    ]
+  },
+  "coding": {
+    "transform": "irreversible 9/7",
+    "decomposition_levels": 5,
+    "layers": 1,
+    "progression": "LRCP",
+    "multiple_component_transform": "none"
+  },
+  "quantization": {
+    "style": 2,
+    "name": "scalar expounded",
+    "guard_bits": 1
+  },
+  "pgx_header": "PG ML  8 17 37\n",
+  "official_tolerance": {
+    "reference": "ITU-T T.803 v3 Table C.6, Class 1 Profile-0",
+    "peak_error": 0,
+    "mse": 0
+  },
+  "observed": {
+    "direct_internal_decode": "exact 629/629 pixel match; peak error 0; MSE 0",
+    "normal_dispatch": "exact 629/629 pixel match; peak error 0; MSE 0"
+  },
+  "note": "The test wraps the original J2K bytes in a minimal enumerated-grayscale JP2. The codestream and PGX reference are byte-for-byte from the official attachment."
+}

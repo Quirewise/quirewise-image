@@ -1,0 +1,75 @@
+{
+  "suite": "ITU-T T.803 (V3, 02/2024)",
+  "profile": "Profile 0",
+  "compliance_class": "Class 1",
+  "test_codestream": "t803_profile0_p0_02.j2k",
+  "reference_image": "t803_profile0_p0_02_class1.pgx",
+  "source_archive": ".tmp/quirewise-agent-evidence/M2-06/M2-02/t803-v3/T.803v3_15444-4ed4-ElecAtt-codestreams.zip",
+  "source_archive_sha256": "ac04b52e1fe38404912036c14f215099ea9a785f38644fbe76ae8f3d1523c86d",
+  "source_members": {
+    "codestream": "files/codestreams_profile0/p0_02.j2k",
+    "reference": "files/reference_class1_profile0/c1p0_02-0.pgx"
+  },
+  "codestream_sha256": "150c8554b827c25b48029f3455b43ce3c029a26bea06eea2c60076c868bb07be",
+  "reference_sha256": "f8928b6d8d200c7dbc56e754c1826caf773d99e52c2c1bc4bbfdea7bc1e0d236",
+  "dimensions": [
+    127,
+    126
+  ],
+  "component": {
+    "count": 1,
+    "depth_bits": 8,
+    "signed": false,
+    "sampling": [
+      2,
+      1
+    ]
+  },
+  "tile": {
+    "count": 1,
+    "origin": [
+      0,
+      0
+    ],
+    "dimensions": [
+      127,
+      126
+    ]
+  },
+  "coding": {
+    "main_header_transform": "irreversible 9/7",
+    "component_override_transform": "reversible 5/3",
+    "effective_transform": "reversible 5/3",
+    "decomposition_levels": 3,
+    "layers": 6,
+    "progression": "LRCP",
+    "multiple_component_transform": "none",
+    "sop": true,
+    "eph": true,
+    "code_block_dimensions": [
+      32,
+      32
+    ],
+    "code_block_style": [
+      "TERMALL",
+      "predictable termination (PTERM)",
+      "segmentation symbols (SEGSYM)"
+    ]
+  },
+  "quantization": {
+    "style": "none (reversible)",
+    "guard_bits": 3
+  },
+  "pgx_header": "PG ML +8 64 126\n",
+  "official_tolerance": {
+    "reference": "ITU-T T.803 v3 Table C.6, Class 1 Profile-0 p0_02",
+    "peak_error": 0,
+    "mse": 0
+  },
+  "observed": {
+    "structural_validation": "PASS",
+    "direct_internal_decode": "QW_STATUS_ERR_UNSUPPORTED; the narrow internal path rejects the component COC and does not decode the TERMALL/PTERM/SEGSYM Tier-1 style",
+    "normal_dispatch": "exact 8064/8064 component samples; peak error 0; MSE 0, using the OpenJPEG fallback"
+  },
+  "note": "The test wraps the original official J2K bytes in a minimal enumerated-grayscale JP2. The normal public dispatch agrees exactly with the official component-plane PGX reference; this is fallback parity evidence and does not establish direct internal decoding for p0_02."
+}
