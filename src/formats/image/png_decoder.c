@@ -1,11 +1,12 @@
 #include "image_internal.h"
 #include "../../core/byte_utils.h"
 
+#include <quirewise/compression.h>
+
 #include <limits.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <zlib.h>
 
 static const uint8_t png_signature[8] = {
     0x89u, 'P', 'N', 'G', '\r', '\n', 0x1au, '\n'
@@ -53,14 +54,11 @@ static int png_chunk_crc_valid(const uint8_t *type,
                                size_t payload_size,
                                uint32_t expected_crc)
 {
-    uLong crc;
-    if (payload_size > (size_t)UINT_MAX) return 0;
-    crc = crc32(0L, Z_NULL, 0);
-    crc = crc32(crc, (const Bytef *)type, 4u);
-    if (payload_size) {
-        crc = crc32(crc, (const Bytef *)payload, (uInt)payload_size);
+    if (!type || (!payload && payload_size) || payload_size > SIZE_MAX - 4u) {
+        return 0;
     }
-    return (uint32_t)crc == expected_crc;
+    /* PNG chunk type and payload are contiguous in the original input buffer. */
+    return qw_compression_crc32(type, 4u + payload_size) == expected_crc;
 }
 
 static int png_bit_depth_valid(uint8_t color_type, uint8_t bit_depth)
@@ -395,26 +393,9 @@ static int png_inflate_idat(const uint8_t *compressed,
                             uint8_t *raw,
                             size_t raw_size)
 {
-    z_stream stream;
-    int zrc;
-    int rc = 0;
-    memset(&stream, 0, sizeof(stream));
-    if (!compressed || !raw || compressed_size > (size_t)UINT_MAX ||
-        raw_size > (size_t)UINT_MAX) {
-        return 0;
-    }
-    stream.next_in = (Bytef *)compressed;
-    stream.avail_in = (uInt)compressed_size;
-    stream.next_out = raw;
-    stream.avail_out = (uInt)raw_size;
-    zrc = inflateInit(&stream);
-    if (zrc != Z_OK) return 0;
-    zrc = inflate(&stream, Z_FINISH);
-    if (zrc == Z_STREAM_END && stream.total_out == raw_size) {
-        rc = 1;
-    }
-    inflateEnd(&stream);
-    return rc;
+    if (!compressed || !raw) return 0;
+    return qw_compression_inflate_zlib(compressed, compressed_size, raw,
+                                       raw_size);
 }
 
 static uint8_t png_paeth(uint8_t left, uint8_t above, uint8_t upper_left)

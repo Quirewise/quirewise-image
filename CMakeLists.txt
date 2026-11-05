@@ -1,14 +1,15 @@
-﻿cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.21)
 project(QuirewiseImage VERSION 0.1.0 LANGUAGES C)
 
 include(CTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
+find_package(QuirewiseCompression CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 set(PKG_CONFIG_ARGN "--static")
 
 pkg_check_modules(QW_IMAGE_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL
-    libjpeg zlib)
+    libjpeg)
 
 set(QW_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -114,11 +115,12 @@ if(QW_JP2_BUILD_COVERAGE_FUZZER)
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         PRIVATE ${QW_INCLUDE_DIRS})
     target_compile_definitions(quirewise_image_decode_fuzz_instrumented PRIVATE
-        USE_ZLIB HAVE_STRDUP)
+        HAVE_STRDUP)
     target_compile_options(quirewise_image_decode_fuzz_instrumented PRIVATE
         -fsanitize-coverage=trace-pc)
     target_link_libraries(quirewise_image_decode_fuzz_instrumented PRIVATE
         quirewise_image_jp2_fuzz_instrumented PkgConfig::QW_IMAGE_BACKENDS
+        Quirewise::Compression
         "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
 
     add_executable(quirewise_image_jp2_public_dispatch_fuzzer
@@ -141,9 +143,9 @@ target_include_directories(quirewise_image_decode PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     PRIVATE ${QW_INCLUDE_DIRS})
-target_compile_definitions(quirewise_image_decode PRIVATE USE_ZLIB HAVE_STRDUP)
+target_compile_definitions(quirewise_image_decode PRIVATE HAVE_STRDUP)
 target_link_libraries(quirewise_image_decode PRIVATE
-    quirewise_image_jp2 PkgConfig::QW_IMAGE_BACKENDS
+    quirewise_image_jp2 PkgConfig::QW_IMAGE_BACKENDS Quirewise::Compression
     "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
 
 add_library(quirewise_image_folder STATIC
@@ -298,6 +300,14 @@ if(BUILD_TESTING)
         quirewise_image_decode PkgConfig::QW_JP2_TEST_BACKENDS)
     add_test(NAME quirewise_image_jp2_structure
         COMMAND quirewise_image_jp2_structure_test)
+
+    add_executable(quirewise_image_compression_migration_test
+        tests/image_compression_migration_test.c)
+    target_compile_features(quirewise_image_compression_migration_test PRIVATE c_std_11)
+    target_link_libraries(quirewise_image_compression_migration_test PRIVATE
+        quirewise_image_decode Quirewise::Compression)
+    add_test(NAME quirewise_image_compression_migration
+        COMMAND quirewise_image_compression_migration_test)
 
     add_executable(quirewise_image_webp_animation_test
         tests/webp_animation_test.c)

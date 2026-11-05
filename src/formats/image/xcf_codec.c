@@ -1,10 +1,11 @@
 #include "image_internal.h"
 
+#include <quirewise/compression.h>
+
 #include <limits.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <zlib.h>
 
 #define QW_XCF_MAX_VERSION 26u
 #define QW_XCF_MAX_LAYERS 4096u
@@ -466,26 +467,7 @@ static int xcf_decode_tile(const QwXcfReader *reader, uint64_t tile_offset,
             ? QW_STATUS_OK : QW_STATUS_ERR_FORMAT;
     }
     if (compression == 2u) {
-        z_stream stream;
-        int zrc;
-        if (input_size > UINT_MAX || tile_size > UINT_MAX) {
-            return QW_STATUS_ERR_RESOURCE_LIMIT;
-        }
-        memset(&stream, 0, sizeof(stream));
-        stream.next_in = (Bytef *)(uintptr_t)input;
-        stream.avail_in = (uInt)input_size;
-        stream.next_out = tile;
-        stream.avail_out = (uInt)tile_size;
-        zrc = inflateInit(&stream);
-        if (zrc != Z_OK) {
-            return zrc == Z_MEM_ERROR ? QW_STATUS_ERR_OUT_OF_MEMORY : QW_STATUS_ERR_DECODE;
-        }
-        zrc = inflate(&stream, Z_FINISH);
-        if (inflateEnd(&stream) != Z_OK && zrc == Z_STREAM_END) {
-            return QW_STATUS_ERR_DECODE;
-        }
-        if (zrc == Z_MEM_ERROR) return QW_STATUS_ERR_OUT_OF_MEMORY;
-        return zrc == Z_STREAM_END && stream.total_out == tile_size
+        return qw_compression_inflate_zlib(input, input_size, tile, tile_size)
             ? QW_STATUS_OK : QW_STATUS_ERR_FORMAT;
     }
     return QW_STATUS_ERR_UNSUPPORTED;

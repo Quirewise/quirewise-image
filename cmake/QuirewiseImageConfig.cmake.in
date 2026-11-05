@@ -1,7 +1,8 @@
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
+find_dependency(QuirewiseCompression CONFIG REQUIRED)
 find_dependency(PkgConfig)
-pkg_check_modules(QW_IMAGE_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL libjpeg zlib)
+pkg_check_modules(QW_IMAGE_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL libjpeg)
 include("${CMAKE_CURRENT_LIST_DIR}/QuirewiseImageTargets.cmake")
 check_required_components(QuirewiseImage)

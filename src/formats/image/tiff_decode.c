@@ -3,6 +3,8 @@
 
 #include "quirewise/status.h"
 
+#include <quirewise/compression.h>
+
 #include <limits.h>
 #include <setjmp.h>
 #include <stdio.h>
@@ -10,7 +12,6 @@
 #include <string.h>
 
 #include <jpeglib.h>
-#include <zlib.h>
 
 enum {
     TIFF_TAG_IMAGE_WIDTH = 256,
@@ -676,20 +677,14 @@ static int tiff_inflate_attempt(const uint8_t *source,
                                 size_t source_size,
                                 uint8_t *destination,
                                 size_t destination_size,
-                                int window_bits)
+                                int zlib_wrapped)
 {
-    z_stream stream;
-    int status;
-    if (source_size > UINT_MAX || destination_size > UINT_MAX) return 0;
-    memset(&stream, 0, sizeof(stream));
-    stream.next_in = (Bytef *)source;
-    stream.avail_in = (uInt)source_size;
-    stream.next_out = destination;
-    stream.avail_out = (uInt)destination_size;
-    if (inflateInit2(&stream, window_bits) != Z_OK) return 0;
-    status = inflate(&stream, Z_FINISH);
-    inflateEnd(&stream);
-    return status == Z_STREAM_END && stream.total_out == destination_size;
+    if (zlib_wrapped) {
+        return qw_compression_inflate_zlib(source, source_size, destination,
+                                           destination_size);
+    }
+    return qw_compression_inflate_raw(source, source_size, destination,
+                                      destination_size);
 }
 
 static int tiff_unpack_deflate(const uint8_t *source,
@@ -698,9 +693,9 @@ static int tiff_unpack_deflate(const uint8_t *source,
                                size_t destination_size)
 {
     return tiff_inflate_attempt(source, source_size, destination,
-                                destination_size, MAX_WBITS) ||
+                                destination_size, 1) ||
            tiff_inflate_attempt(source, source_size, destination,
-                                destination_size, -MAX_WBITS);
+                                destination_size, 0);
 }
 
 static void tiff_jpeg_error_exit(j_common_ptr common)
