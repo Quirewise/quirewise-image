@@ -265,6 +265,16 @@ if(BUILD_TESTING)
     add_test(NAME quirewise_image_jp2_tier1_model
         COMMAND quirewise_image_jp2_tier1_model_test)
 
+    add_executable(quirewise_image_jp2_profile_matrix_test
+        tests/jp2_profile_matrix_test.c)
+    target_compile_features(quirewise_image_jp2_profile_matrix_test PRIVATE c_std_11)
+    target_compile_definitions(quirewise_image_jp2_profile_matrix_test PRIVATE
+        QUIREWISE_JP2_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data/jp2")
+    target_link_libraries(quirewise_image_jp2_profile_matrix_test PRIVATE
+        quirewise_image_bundle)
+    add_test(NAME quirewise_image_jp2_profile_matrix
+        COMMAND quirewise_image_jp2_profile_matrix_test)
+
     add_executable(quirewise_image_jp2_dwt_test
         tests/jp2_dwt_test.c)
     target_compile_features(quirewise_image_jp2_dwt_test PRIVATE c_std_11)
