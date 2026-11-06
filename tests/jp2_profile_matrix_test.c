@@ -135,6 +135,52 @@ static int run_decode_case(const char *name, uint32_t width, uint32_t height,
     return 1;
 }
 
+
+static int run_rgb_reference_case(const char *encoded_name,
+                                  const char *reference_name,
+                                  uint32_t width, uint32_t height)
+{
+    uint8_t *encoded = NULL;
+    uint8_t *reference = NULL;
+    size_t encoded_size = 0u;
+    size_t reference_size = 0u;
+    QwImage image = {0};
+    int status;
+    if (!read_file(encoded_name, &encoded, &encoded_size)) {
+        fprintf(stderr, "missing fixture: %s\n", encoded_name);
+        return 0;
+    }
+    if (!read_file(reference_name, &reference, &reference_size)) {
+        fprintf(stderr, "missing reference: %s\n", reference_name);
+        free(encoded);
+        return 0;
+    }
+    status = qw_image_decode(encoded, encoded_size, &image);
+    free(encoded);
+    if (status != 0) {
+        fprintf(stderr, "%s decode failed: %s\n", encoded_name,
+                qw_image_status_string(status));
+        free(reference);
+        return 0;
+    }
+    if (image.width != width || image.height != height ||
+        image.format != QW_IMAGE_PIXEL_RGB24 ||
+        image.size != reference_size ||
+        memcmp(image.pixels, reference, reference_size) != 0) {
+        fprintf(stderr, "%s RGB reference mismatch: %ux%u format=%d size=%zu/%zu\n",
+                encoded_name, image.width, image.height, (int)image.format,
+                image.size, reference_size);
+        qw_image_free(&image);
+        free(reference);
+        return 0;
+    }
+    qw_image_free(&image);
+    free(reference);
+    printf("golden %s: %ux%u rgb24 byte-identical\n", encoded_name, width,
+           height);
+    return 1;
+}
+
 static int test_oversized_tiled_codestream(void)
 {
     uint8_t *encoded = NULL;
@@ -246,6 +292,10 @@ int main(void)
         ++failures;
     if (!run_decode_case("t803_profile0_p0_09.j2k", 17u, 37u,
                          QW_IMAGE_PIXEL_GRAY8))
+        ++failures;
+    if (!run_rgb_reference_case(
+            "synthetic_rgb8_sycc_enumcs18_16x16.jp2",
+            "synthetic_rgb8_sycc_enumcs18_16x16.rgb24", 16u, 16u))
         ++failures;
     if (!test_oversized_tiled_codestream()) ++failures;
     if (failures) {
