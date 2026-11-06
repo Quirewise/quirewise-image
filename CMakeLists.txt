@@ -306,6 +306,15 @@ if(BUILD_TESTING)
     add_test(NAME quirewise_image_compression_migration
         COMMAND quirewise_image_compression_migration_test)
 
+    add_executable(quirewise_image_fuzz_smoke tests/image_fuzz_smoke.c)
+    target_compile_features(quirewise_image_fuzz_smoke PRIVATE c_std_11)
+    target_include_directories(quirewise_image_fuzz_smoke PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests")
+    target_link_libraries(quirewise_image_fuzz_smoke PRIVATE quirewise_image_decode quirewise_image_jp2)
+    add_test(NAME quirewise_image_fuzz_smoke
+        COMMAND quirewise_image_fuzz_smoke)
+
     add_executable(quirewise_image_webp_animation_test
         tests/webp_animation_test.c)
     target_compile_features(quirewise_image_webp_animation_test PRIVATE c_std_11)
