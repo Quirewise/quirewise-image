@@ -75,7 +75,6 @@ set(QW_IMAGE_SOURCES
     src/formats/image/icon_codec.c
     src/formats/image/image_api.c
     src/formats/image/image_decode.c
-    src/formats/image/image_name.c
     src/formats/image/jpeg_parser.c
     src/formats/image/miff_codec.c
     src/formats/image/mng_codec.c
