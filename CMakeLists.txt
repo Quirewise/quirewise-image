@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 project(QuirewiseImage VERSION 0.1.0 LANGUAGES C)
+option(QUIREWISE_BUILD_SHARED "Build Quirewise libraries as shared libraries" OFF)
+if(QUIREWISE_BUILD_SHARED)
+    set(QW_LIBRARY_TYPE SHARED)
+else()
+    set(QW_LIBRARY_TYPE STATIC)
+endif()
 
 include(CTest)
 include(GNUInstallDirs)
@@ -26,7 +32,7 @@ set(QW_JP2_SOURCES
     src/formats/image/jp2_dwt.c
     src/formats/image/jp2_tier1_decoder.c
     src/formats/image/jp2_tier1_model.c)
-add_library(quirewise_image_jp2 STATIC ${QW_JP2_SOURCES})
+add_library(quirewise_image_jp2 ${QW_LIBRARY_TYPE} ${QW_JP2_SOURCES})
 set_target_properties(quirewise_image_jp2 PROPERTIES EXPORT_NAME ImageJP2 POSITION_INDEPENDENT_CODE ON)
 target_compile_features(quirewise_image_jp2 PUBLIC c_std_11)
 target_include_directories(quirewise_image_jp2 PUBLIC
@@ -130,7 +136,7 @@ if(QW_JP2_BUILD_COVERAGE_FUZZER)
     target_link_libraries(quirewise_image_jp2_public_dispatch_fuzzer PRIVATE
         quirewise_image_decode_fuzz_instrumented)
 endif()
-add_library(quirewise_image_decode STATIC ${QW_IMAGE_SOURCES})
+add_library(quirewise_image_decode ${QW_LIBRARY_TYPE} ${QW_IMAGE_SOURCES})
 set_target_properties(quirewise_image_decode PROPERTIES EXPORT_NAME ImageDecode POSITION_INDEPENDENT_CODE ON)
 target_compile_features(quirewise_image_decode PUBLIC c_std_11)
 target_include_directories(quirewise_image_decode PUBLIC
@@ -142,7 +148,7 @@ target_link_libraries(quirewise_image_decode PRIVATE
     quirewise_image_jp2 Quirewise::Compression
     "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
 
-add_library(quirewise_image_folder STATIC
+add_library(quirewise_image_folder ${QW_LIBRARY_TYPE}
     src/formats/image/image_folder_parser.c
     src/formats/image/image_name.c
     src/core/platform_unicode.c
@@ -156,7 +162,7 @@ target_include_directories(quirewise_image_folder PUBLIC
 target_link_libraries(quirewise_image_folder PRIVATE
     "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
 
-add_library(quirewise_image_processing STATIC
+add_library(quirewise_image_processing ${QW_LIBRARY_TYPE}
     src/formats/image/image_processing_api.c
     src/formats/image/scan_advanced_geometry.c
     src/formats/image/scan_geometry.c
@@ -329,3 +335,11 @@ if(BUILD_TESTING)
         COMMAND quirewise_image_webp_animation_test)
 endif()
 
+if(QUIREWISE_BUILD_SHARED AND WIN32)
+    set_target_properties(
+        quirewise_image_jp2
+        quirewise_image_decode
+        quirewise_image_folder
+        quirewise_image_processing
+        PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
