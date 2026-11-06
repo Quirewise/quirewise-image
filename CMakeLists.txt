@@ -199,12 +199,11 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/QuirewiseImageConfigVersion.cmake"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/QuirewiseImage")
 
-if(BUILD_TESTING)
-    find_package(PkgConfig REQUIRED)
-    set(PKG_CONFIG_ARGN "--static")
-    pkg_check_modules(QW_JP2_TEST_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL
-        libopenjp2)
+option(QW_IMAGE_BUILD_OPENJPEG_REFERENCE_TESTS
+    "Build JP2 tests that compare Quirewise output against an OpenJPEG reference decoder (development-only; requires pkg-config and libopenjp2)"
+    OFF)
 
+if(BUILD_TESTING)
     add_executable(quirewise_image_jp2_packet_header_test
         tests/jp2_packet_header_test.c)
     target_compile_features(quirewise_image_jp2_packet_header_test PRIVATE c_std_11)
@@ -285,18 +284,27 @@ if(BUILD_TESTING)
     add_test(NAME quirewise_image_jp2_mq
         COMMAND quirewise_image_jp2_mq_test)
 
-    add_executable(quirewise_image_jp2_structure_test
-        tests/jp2_structure_test.c)
-    target_compile_features(quirewise_image_jp2_structure_test PRIVATE c_std_11)
-    target_include_directories(quirewise_image_jp2_structure_test PRIVATE
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/formats/image")
-    target_compile_definitions(quirewise_image_jp2_structure_test PRIVATE
-        QUIREWISE_JP2_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data/jp2")
-    target_link_libraries(quirewise_image_jp2_structure_test PRIVATE
-        quirewise_image_decode PkgConfig::QW_JP2_TEST_BACKENDS)
-    add_test(NAME quirewise_image_jp2_structure
-        COMMAND quirewise_image_jp2_structure_test)
+    if(QW_IMAGE_BUILD_OPENJPEG_REFERENCE_TESTS)
+        # Development-only oracle. Never part of the production build, the
+        # default test build, or the installed package dependency graph.
+        find_package(PkgConfig REQUIRED)
+        set(PKG_CONFIG_ARGN "--static")
+        pkg_check_modules(QW_JP2_TEST_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL
+            libopenjp2)
+
+        add_executable(quirewise_image_jp2_structure_test
+            tests/jp2_structure_test.c)
+        target_compile_features(quirewise_image_jp2_structure_test PRIVATE c_std_11)
+        target_include_directories(quirewise_image_jp2_structure_test PRIVATE
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/formats/image")
+        target_compile_definitions(quirewise_image_jp2_structure_test PRIVATE
+            QUIREWISE_JP2_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data/jp2")
+        target_link_libraries(quirewise_image_jp2_structure_test PRIVATE
+            quirewise_image_decode PkgConfig::QW_JP2_TEST_BACKENDS)
+        add_test(NAME quirewise_image_jp2_structure
+            COMMAND quirewise_image_jp2_structure_test)
+    endif()
 
     add_executable(quirewise_image_compression_migration_test
         tests/image_compression_migration_test.c)
