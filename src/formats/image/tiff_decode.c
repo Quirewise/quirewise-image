@@ -5,13 +5,12 @@
 
 #include <quirewise/compression.h>
 
+#include "stb_image.h"
+
 #include <limits.h>
-#include <setjmp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <jpeglib.h>
 
 enum {
     TIFF_TAG_IMAGE_WIDTH = 256,
@@ -105,11 +104,6 @@ typedef struct QwTiffImageInfo {
     const QwTiffField *color_map;
     const QwTiffField *jpeg_tables;
 } QwTiffImageInfo;
-
-typedef struct QwJpegError {
-    struct jpeg_error_mgr pub;
-    jmp_buf jump;
-} QwJpegError;
 
 static int tiff_range_ok(const QwTiffFile *file, uint64_t offset, uint64_t length)
 {
@@ -698,12 +692,6 @@ static int tiff_unpack_deflate(const uint8_t *source,
                                 destination_size, 0);
 }
 
-static void tiff_jpeg_error_exit(j_common_ptr common)
-{
-    QwJpegError *error = (QwJpegError *)common->err;
-    longjmp(error->jump, 1);
-}
-
 static int tiff_decode_jpeg_strip(const uint8_t *source,
                                   size_t source_size,
                                   const QwTiffFile *file,
@@ -714,19 +702,24 @@ static int tiff_decode_jpeg_strip(const uint8_t *source,
                                   uint8_t *destination,
                                   size_t destination_size)
 {
-    struct jpeg_decompress_struct decoder;
-    QwJpegError error;
     uint8_t *joined = NULL;
     const uint8_t *jpeg_data = source;
     size_t jpeg_size = source_size;
     size_t output_stride;
-    int created = 0;
-    uint32_t row;
+    int image_width = 0;
+    int image_height = 0;
+    int source_channels = 0;
+    stbi_uc *pixels = NULL;
+    int requested_channels = channels == 1 ? 1 : 3;
 
-    if (source_size < 2u || source_size > ULONG_MAX ||
-        destination_size > SIZE_MAX || width > SIZE_MAX / (size_t)channels) {
+    if (source_size < 2u || (channels != 1 && channels != 3) ||
+        width > (uint32_t)INT_MAX || rows > (uint32_t)INT_MAX ||
+        !destination) {
         return 0;
     }
+    output_stride = (size_t)width * (size_t)channels;
+    if (rows && output_stride > SIZE_MAX / rows) return 0;
+    if (output_stride * rows != destination_size) return 0;
     if (!(source[0] == 0xffu && source[1] == 0xd8u) ||
         (tables && tables->count)) {
         const uint8_t *table_data = NULL;
@@ -759,7 +752,8 @@ static int tiff_decode_jpeg_strip(const uint8_t *source,
         if (source_size >= 2u && source[0] == 0xffu && source[1] == 0xd8u) {
             strip_start = 2u;
         }
-        if (prefix_end - prefix_start > SIZE_MAX - (strip_end - strip_start) ||
+        if (prefix_end < prefix_start || strip_end < strip_start ||
+            prefix_end - prefix_start > SIZE_MAX - (strip_end - strip_start) ||
             prefix_end - prefix_start + (strip_end - strip_start) > SIZE_MAX - 4u) {
             return 0;
         }
@@ -784,47 +778,24 @@ static int tiff_decode_jpeg_strip(const uint8_t *source,
         jpeg_data = joined;
         jpeg_size = cursor;
     }
-    if (jpeg_size > ULONG_MAX || width > SIZE_MAX / (size_t)channels) {
-        free(joined);
-        return 0;
-    }
-    output_stride = (size_t)width * (size_t)channels;
-    if (rows && output_stride > SIZE_MAX / rows) {
-        free(joined);
-        return 0;
-    }
-    if (output_stride * rows > destination_size) {
-        free(joined);
-        return 0;
-    }
-    memset(&decoder, 0, sizeof(decoder));
-    decoder.err = jpeg_std_error(&error.pub);
-    error.pub.error_exit = tiff_jpeg_error_exit;
-    if (setjmp(error.jump)) {
-        if (created) jpeg_destroy_decompress(&decoder);
-        free(joined);
-        return 0;
-    }
-    jpeg_create_decompress(&decoder);
-    created = 1;
-    jpeg_mem_src(&decoder, jpeg_data, (unsigned long)jpeg_size);
-    if (jpeg_read_header(&decoder, TRUE) != JPEG_HEADER_OK) goto jpeg_fail;
-    decoder.out_color_space = channels == 1 ? JCS_GRAYSCALE : JCS_RGB;
-    if (!jpeg_start_decompress(&decoder) || decoder.output_width != width ||
-        decoder.output_height != rows || decoder.output_components != channels) {
+    if (jpeg_size > (size_t)INT_MAX) goto jpeg_fail;
+    if (!stbi_info_from_memory((const stbi_uc *)jpeg_data, (int)jpeg_size,
+                               &image_width, &image_height, &source_channels) ||
+        image_width != (int)width || image_height != (int)rows) {
         goto jpeg_fail;
     }
-    for (row = 0u; row < rows; ++row) {
-        JSAMPROW output_row = destination + (size_t)row * output_stride;
-        if (jpeg_read_scanlines(&decoder, &output_row, 1u) != 1u) goto jpeg_fail;
-    }
-    if (!jpeg_finish_decompress(&decoder)) goto jpeg_fail;
-    jpeg_destroy_decompress(&decoder);
+    pixels = stbi_load_from_memory((const stbi_uc *)jpeg_data, (int)jpeg_size,
+                                   &image_width, &image_height, &source_channels,
+                                   requested_channels);
+    if (!pixels) goto jpeg_fail;
+    if (image_width != (int)width || image_height != (int)rows) goto jpeg_fail;
+    memcpy(destination, pixels, destination_size);
+    stbi_image_free(pixels);
     free(joined);
     return 1;
 
 jpeg_fail:
-    jpeg_destroy_decompress(&decoder);
+    stbi_image_free(pixels);
     free(joined);
     return 0;
 }

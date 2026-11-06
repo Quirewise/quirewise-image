@@ -3,7 +3,12 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#ifndef QUIREWISE_TIFF_TEST_DATA_DIR
+#define QUIREWISE_TIFF_TEST_DATA_DIR "tests/data/tiff"
+#endif
 
 #define CHECK(condition) do { \
     if (!(condition)) { \
@@ -269,11 +274,102 @@ static int test_tiff_deflate_variant(int raw_deflate)
                                           : "TIFF zlib Deflate");
 }
 
+static int decode_fixture_file(const char *name, QwImage *out_image)
+{
+    char path[1024];
+    FILE *file;
+    long length;
+    uint8_t *encoded;
+    int rc;
+    int written = snprintf(path, sizeof(path), "%s/%s",
+                           QUIREWISE_TIFF_TEST_DATA_DIR, name);
+    if (written < 0 || (size_t)written >= sizeof(path)) return 0;
+    file = fopen(path, "rb");
+    if (!file) {
+        fprintf(stderr, "missing fixture: %s\n", path);
+        return 0;
+    }
+    if (fseek(file, 0L, SEEK_END) != 0 || (length = ftell(file)) <= 0 ||
+        fseek(file, 0L, SEEK_SET) != 0) {
+        fclose(file);
+        return 0;
+    }
+    encoded = (uint8_t *)malloc((size_t)length);
+    if (!encoded) {
+        fclose(file);
+        return 0;
+    }
+    if (fread(encoded, 1u, (size_t)length, file) != (size_t)length) {
+        free(encoded);
+        fclose(file);
+        return 0;
+    }
+    fclose(file);
+    rc = qw_image_decode(encoded, (size_t)length, out_image);
+    free(encoded);
+    if (rc != QW_IMAGE_OK) {
+        fprintf(stderr, "%s did not decode: %s\n", name,
+                qw_image_status_string(rc));
+        return 0;
+    }
+    return 1;
+}
+
+static int check_uniform_rgb8(const QwImage *image, const uint8_t expected[3],
+                              int tolerance, const char *label)
+{
+    if (image->width != 8u || image->height != 8u ||
+        image->format != QW_IMAGE_PIXEL_RGB24 ||
+        image->stride != 8u * 3u || image->size != 8u * 8u * 3u) {
+        fprintf(stderr, "%s produced unexpected image geometry\n", label);
+        return 0;
+    }
+    for (size_t i = 0u; i < (size_t)image->width * image->height; ++i) {
+        for (size_t channel = 0u; channel < 3u; ++channel) {
+            int actual = image->pixels[i * 3u + channel];
+            int wanted = expected[channel];
+            int difference = actual > wanted ? actual - wanted
+                                             : wanted - actual;
+            if (difference > tolerance) {
+                fprintf(stderr,
+                        "%s pixel %zu channel %zu is %d, expected %d\n",
+                        label, i, channel, actual, wanted);
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+static int test_tiff_jpeg_tables_path(void)
+{
+    static const uint8_t expected_rgb[3] = {128u, 64u, 32u};
+    QwImage image = {0};
+    int ok;
+    if (!decode_fixture_file("jpeg_compressed_8x8.tif", &image)) return 0;
+    ok = check_uniform_rgb8(&image, expected_rgb, 8, "TIFF JPEG");
+    qw_image_free(&image);
+    return ok;
+}
+
+static int test_jpeg_stream_path(void)
+{
+    static const uint8_t expected_rgb[3] = {128u, 64u, 32u};
+    QwImage image = {0};
+    int ok;
+    if (!decode_fixture_file("standalone_8x8.jpg", &image)) return 0;
+    ok = check_uniform_rgb8(&image, expected_rgb, 8, "JPEG");
+    qw_image_free(&image);
+    return ok;
+}
+
 int main(void)
 {
     if (!test_png_zlib_path()) return 1;
     if (!test_xcf_zlib_tile_path()) return 1;
     if (!test_tiff_deflate_variant(0)) return 1;
     if (!test_tiff_deflate_variant(1)) return 1;
+    if (!test_tiff_jpeg_tables_path()) return 1;
+    if (!test_jpeg_stream_path()) return 1;
     return 0;
 }

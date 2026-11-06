@@ -5,11 +5,6 @@ include(CTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 find_package(QuirewiseCompression CONFIG REQUIRED)
-find_package(PkgConfig REQUIRED)
-set(PKG_CONFIG_ARGN "--static")
-
-pkg_check_modules(QW_IMAGE_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL
-    libjpeg)
 
 set(QW_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -119,7 +114,7 @@ if(QW_JP2_BUILD_COVERAGE_FUZZER)
     target_compile_options(quirewise_image_decode_fuzz_instrumented PRIVATE
         -fsanitize-coverage=trace-pc)
     target_link_libraries(quirewise_image_decode_fuzz_instrumented PRIVATE
-        quirewise_image_jp2_fuzz_instrumented PkgConfig::QW_IMAGE_BACKENDS
+        quirewise_image_jp2_fuzz_instrumented
         Quirewise::Compression
         "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
 
@@ -145,7 +140,7 @@ target_include_directories(quirewise_image_decode PUBLIC
     PRIVATE ${QW_INCLUDE_DIRS})
 target_compile_definitions(quirewise_image_decode PRIVATE HAVE_STRDUP)
 target_link_libraries(quirewise_image_decode PRIVATE
-    quirewise_image_jp2 PkgConfig::QW_IMAGE_BACKENDS Quirewise::Compression
+    quirewise_image_jp2 Quirewise::Compression
     "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
 
 add_library(quirewise_image_folder STATIC
@@ -205,6 +200,8 @@ install(FILES
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/QuirewiseImage")
 
 if(BUILD_TESTING)
+    find_package(PkgConfig REQUIRED)
+    set(PKG_CONFIG_ARGN "--static")
     pkg_check_modules(QW_JP2_TEST_BACKENDS REQUIRED IMPORTED_TARGET GLOBAL
         libopenjp2)
 
@@ -304,6 +301,8 @@ if(BUILD_TESTING)
     add_executable(quirewise_image_compression_migration_test
         tests/image_compression_migration_test.c)
     target_compile_features(quirewise_image_compression_migration_test PRIVATE c_std_11)
+    target_compile_definitions(quirewise_image_compression_migration_test PRIVATE
+        QUIREWISE_TIFF_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data/tiff")
     target_link_libraries(quirewise_image_compression_migration_test PRIVATE
         quirewise_image_decode Quirewise::Compression)
     add_test(NAME quirewise_image_compression_migration
