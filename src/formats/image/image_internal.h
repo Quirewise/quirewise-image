@@ -1,7 +1,7 @@
 #ifndef QUIREWISE_IMAGE_INTERNAL_H
 #define QUIREWISE_IMAGE_INTERNAL_H
 
-#include "quirewise/convert.h"
+#include "quirewise/format.h"
 #include "quirewise/document.h"
 #include "../../core/architecture_metadata.h"
 #include "../../core/byte_utils.h"

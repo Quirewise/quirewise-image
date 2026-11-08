@@ -11,6 +11,7 @@ include(CTest)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 find_package(QuirewiseCompression CONFIG REQUIRED)
+find_package(QuirewiseRuntime CONFIG REQUIRED)
 
 set(QW_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -337,3 +338,7 @@ if(QUIREWISE_BUILD_SHARED AND WIN32)
         quirewise_image_processing
         PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 endif()
+target_link_libraries(quirewise_image_jp2 PUBLIC Quirewise::Runtime)
+target_link_libraries(quirewise_image_decode PUBLIC Quirewise::Runtime)
+target_link_libraries(quirewise_image_folder PUBLIC Quirewise::Runtime)
+target_link_libraries(quirewise_image_processing PUBLIC Quirewise::Runtime)
