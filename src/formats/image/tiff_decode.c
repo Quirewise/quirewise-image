@@ -5,7 +5,7 @@
 
 #include <quirewise/compression.h>
 
-#include "stb_image.h"
+#include "jpeg_decoder.h"
 
 #include <limits.h>
 #include <stdio.h>
@@ -706,10 +706,6 @@ static int tiff_decode_jpeg_strip(const uint8_t *source,
     const uint8_t *jpeg_data = source;
     size_t jpeg_size = source_size;
     size_t output_stride;
-    int image_width = 0;
-    int image_height = 0;
-    int source_channels = 0;
-    stbi_uc *pixels = NULL;
     int requested_channels = channels == 1 ? 1 : 3;
 
     if (source_size < 2u || (channels != 1 && channels != 3) ||
@@ -778,24 +774,39 @@ static int tiff_decode_jpeg_strip(const uint8_t *source,
         jpeg_data = joined;
         jpeg_size = cursor;
     }
-    if (jpeg_size > (size_t)INT_MAX) goto jpeg_fail;
-    if (!stbi_info_from_memory((const stbi_uc *)jpeg_data, (int)jpeg_size,
-                               &image_width, &image_height, &source_channels) ||
-        image_width != (int)width || image_height != (int)rows) {
-        goto jpeg_fail;
+    {
+        QwJpegImage image;
+        size_t count = (size_t)width * (size_t)rows;
+        size_t i;
+        if (qw_jpeg_decode(jpeg_data, jpeg_size, &image) != 0) goto jpeg_fail;
+        if (image.width != (int)width || image.height != (int)rows ||
+            (image.channels != 1 && image.channels != 3)) {
+            qw_jpeg_image_free(&image);
+            goto jpeg_fail;
+        }
+        if (image.channels == requested_channels) {
+            memcpy(destination, image.pixels, destination_size);
+        } else if (image.channels == 3 && requested_channels == 1) {
+            for (i = 0; i < count; ++i) {
+                int r = image.pixels[i * 3u + 0u];
+                int g = image.pixels[i * 3u + 1u];
+                int b = image.pixels[i * 3u + 2u];
+                destination[i] = (uint8_t)((r * 299 + g * 587 + b * 114 + 500) / 1000);
+            }
+        } else {
+            for (i = 0; i < count; ++i) {
+                uint8_t gray = image.pixels[i];
+                destination[i * 3u + 0u] = gray;
+                destination[i * 3u + 1u] = gray;
+                destination[i * 3u + 2u] = gray;
+            }
+        }
+        qw_jpeg_image_free(&image);
     }
-    pixels = stbi_load_from_memory((const stbi_uc *)jpeg_data, (int)jpeg_size,
-                                   &image_width, &image_height, &source_channels,
-                                   requested_channels);
-    if (!pixels) goto jpeg_fail;
-    if (image_width != (int)width || image_height != (int)rows) goto jpeg_fail;
-    memcpy(destination, pixels, destination_size);
-    stbi_image_free(pixels);
     free(joined);
     return 1;
 
 jpeg_fail:
-    stbi_image_free(pixels);
     free(joined);
     return 0;
 }

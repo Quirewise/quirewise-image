@@ -2,7 +2,7 @@
 #include "../../core/byte_utils.h"
 
 #include "quirewise/status.h"
-#include "stb_image.h"
+#include "jpeg_decoder.h"
 #include "tiff_decode.h"
 #include <limits.h>
 #include <stdint.h>
@@ -318,12 +318,13 @@ int qw_image_decode_page(const void *data,
                          size_t size,
                          QwPageImage *out_page)
 {
-    stbi_uc *decoded = NULL;
+    uint8_t *decoded = NULL;
     uint8_t *pixels = NULL;
     int width = 0;
     int height = 0;
     int channels = 0;
     int decoded_by_webp = 0;
+    int decoded_by_jpeg = 0;
     uint32_t webp_width = 0u;
     uint32_t webp_height = 0u;
     size_t pixel_count;
@@ -469,19 +470,23 @@ int qw_image_decode_page(const void *data,
         }
         channels = 4;
     } else {
-        /* JPEG structure is validated by the project parser above. stb_image
-         * remains the pixel decoder, but does not select the input format. */
+        QwJpegImage jpeg_image;
+        /* JPEG structure is validated by the project parser above; the pixel
+         * decoder is the first-party JPEG implementation. */
         if (!jpeg_parsed) {
             return QW_STATUS_ERR_UNSUPPORTED;
-        }
-        if (size > INT_MAX) {
-            return QW_STATUS_ERR_INVALID_ARGUMENT;
         }
         if (!qw_image_dimensions_within_limits(jpeg_width, jpeg_height)) {
             return QW_STATUS_ERR_RESOURCE_LIMIT;
         }
-        decoded = stbi_load_from_memory((const stbi_uc *)data, (int)size,
-                                        &width, &height, &channels, 0);
+        if (qw_jpeg_decode((const uint8_t *)data, size, &jpeg_image) != 0) {
+            return QW_STATUS_ERR_FORMAT;
+        }
+        decoded = jpeg_image.pixels;
+        width = jpeg_image.width;
+        height = jpeg_image.height;
+        channels = jpeg_image.channels;
+        decoded_by_jpeg = 1;
     }
     if (!decoded || width <= 0 || height <= 0 ||
         (channels != 1 && channels != 2 && channels != 3 && channels != 4)) {
@@ -551,10 +556,10 @@ int qw_image_decode_page(const void *data,
 cleanup:
     free(pixels);
     if (decoded) {
-        if (decoded_by_webp) {
+        if (decoded_by_webp || decoded_by_jpeg) {
             free(decoded);
         } else {
-            stbi_image_free(decoded);
+            free(decoded);
         }
     }
     return rc;

@@ -18,9 +18,7 @@ set(QW_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/core"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/formats/image"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/formats/djvu"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/backends"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb"
-    "${CMAKE_CURRENT_SOURCE_DIR}/third_party/aes")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/backends")
 
 set(QW_JP2_SOURCES
     src/formats/image/jp2_codec.c
@@ -69,7 +67,6 @@ endif()
 
 set(QW_IMAGE_SOURCES
     src/formats/image/optional_codec_stubs.c
-    src/formats/image/stb_image_impl.c
     src/formats/image/apng_probe.c
     src/formats/image/bmp_decoder.c
     src/formats/image/dcm_codec.c
@@ -83,6 +80,7 @@ set(QW_IMAGE_SOURCES
     src/formats/image/image_api.c
     src/formats/image/image_decode.c
     src/formats/image/jpeg_parser.c
+    src/formats/image/jpeg_decoder.c
     src/formats/image/miff_codec.c
     src/formats/image/mng_codec.c
     src/formats/image/pcx_codec.c
@@ -115,8 +113,6 @@ if(QW_JP2_BUILD_COVERAGE_FUZZER)
     target_include_directories(quirewise_image_decode_fuzz_instrumented PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}/include"
         PRIVATE ${QW_INCLUDE_DIRS})
-    target_compile_definitions(quirewise_image_decode_fuzz_instrumented PRIVATE
-        HAVE_STRDUP)
     target_compile_options(quirewise_image_decode_fuzz_instrumented PRIVATE
         -fsanitize-coverage=trace-pc)
     target_link_libraries(quirewise_image_decode_fuzz_instrumented PRIVATE
@@ -144,7 +140,6 @@ target_include_directories(quirewise_image_decode PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
     "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
     PRIVATE ${QW_INCLUDE_DIRS})
-target_compile_definitions(quirewise_image_decode PRIVATE HAVE_STRDUP)
 target_link_libraries(quirewise_image_decode PRIVATE
     quirewise_image_jp2 Quirewise::Compression
     "$<$<NOT:$<PLATFORM_ID:Windows>>:m>")
