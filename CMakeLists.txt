@@ -79,6 +79,7 @@ set(QW_IMAGE_SOURCES
     src/formats/image/icon_codec.c
     src/formats/image/image_api.c
     src/formats/image/image_decode.c
+    src/formats/image/image_encode.c
     src/formats/image/jpeg_parser.c
     src/formats/image/jpeg_decoder.c
     src/formats/image/miff_codec.c
@@ -310,6 +311,14 @@ if(BUILD_TESTING)
     target_link_libraries(quirewise_image_fuzz_smoke PRIVATE quirewise_image_decode quirewise_image_jp2)
     add_test(NAME quirewise_image_fuzz_smoke
         COMMAND quirewise_image_fuzz_smoke)
+
+    add_executable(quirewise_image_encode_test tests/image_encode_test.c)
+    target_compile_features(quirewise_image_encode_test PRIVATE c_std_11)
+    target_include_directories(quirewise_image_encode_test PRIVATE
+        "${CMAKE_CURRENT_SOURCE_DIR}/include")
+    target_link_libraries(quirewise_image_encode_test PRIVATE
+        quirewise_image_decode quirewise_image_jp2 Quirewise::Compression)
+    add_test(NAME quirewise_image_encode COMMAND quirewise_image_encode_test)
 
     add_executable(quirewise_image_webp_animation_test
         tests/webp_animation_test.c)

@@ -15,6 +15,7 @@ application repository.
   natural filename order.
 - Cleans up scanned grayscale pages: illumination normalisation, deskew, crop,
   perspective correction, dewarp, and double-page split.
+- Encodes Gray8 or RGB24 pixels as PNG, BMP or baseline TIFF.
 
 Decoding covers JPEG (baseline and progressive), PNG (APNG decodes its default
 image), MNG, GIF87a/89a (first frame), BMP, TIFF (first top-level IFD; none,
@@ -22,8 +23,10 @@ CCITT T.6, LZW, JPEG, Deflate and PackBits), WebP (VP8/VP8L/alpha, still only),
 JP2/J2K, PSD/PSB flattened composites, OpenEXR scanline images, Radiance HDR,
 Softimage PIC, TGA, PCX, PFM, DDS (DXT1/BC1), QOI, XPM, XBM, WBMP, PNM/PAM,
 ICO/CUR (first entry), SGI, Sun Raster, MIFF, DICOM (single-frame uncompressed)
-and XCF. It deliberately does **not** encode images, decode AVIF/HEIC/JPEG
-XL/camera RAW, decode animated WebP, or preserve EXIF/ICC metadata.
+and XCF. The write side currently covers PNG (stored zlib), BMP (24-bit) and
+baseline TIFF (uncompressed); JPEG and WebP encoding are not implemented yet.
+It does **not** decode AVIF/HEIC/JPEG XL/camera RAW, decode animated WebP, or
+preserve EXIF/ICC metadata.
 
 ## Requirements
 
@@ -115,13 +118,14 @@ int main(int argc, char **argv)
 
 | Header | Purpose |
 |---|---|
-| `quirewise/image.h` | probe, decode, status text, ABI version |
+| `quirewise/image.h` | probe, decode, encode, status text, ABI version |
 | `quirewise/image_folder.h` | non-recursive image-directory listing |
 | `quirewise/image_processing.h` | Gray8 scan cleanup and page split |
 
 | Task | Functions |
 |---|---|
 | Probe / decode | `qw_image_probe`, `qw_image_decode`, `qw_image_free` |
+| Encode | `qw_image_encode`, `qw_image_buffer_free` |
 | Filename check | `qw_image_name_is_supported` |
 | Folder listing | `qw_image_folder_open`, `qw_image_folder_free`, `qw_image_folder_is_directory` |
 | Gray8 ownership | `qw_gray_image_copy`, `qw_gray_image_adopt`, `qw_gray_image_release` |
@@ -139,6 +143,10 @@ int main(int argc, char **argv)
   to 8-bit Gray8/RGB24.
 - `QwImage.pixels` belongs to the value and is released with `qw_image_free`.
   Input bytes are borrowed and may be freed after the call returns.
+- `qw_image_encode` writes PNG/BMP/TIFF and returns a malloc-owned buffer that
+  is released with `qw_image_buffer_free`. JPEG and WebP return
+  `QW_IMAGE_ERR_UNSUPPORTED`; no resampling, color conversion or metadata is
+  synthesized, and the stride may exceed the packed row size.
 - Decoding enforces a 32768-pixel maximum dimension and 20,000,000 decoded
   pixels, returning `QW_IMAGE_ERR_RESOURCE_LIMIT`.
 - `qw_image_folder_open` is non-recursive and keeps only names accepted by

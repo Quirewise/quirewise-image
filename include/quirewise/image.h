@@ -56,6 +56,14 @@ typedef struct QwImage {
     QwImagePixelFormat format;
 } QwImage;
 
+typedef enum QwImageEncodeFormat {
+    QW_IMAGE_ENCODE_PNG = 1,
+    QW_IMAGE_ENCODE_BMP,
+    QW_IMAGE_ENCODE_TIFF,
+    QW_IMAGE_ENCODE_JPEG,
+    QW_IMAGE_ENCODE_WEBP
+} QwImageEncodeFormat;
+
 QUIREWISE_IMAGE_API uint32_t qw_image_abi_version(void);
 
 /* Returns 1 when the input matches a supported raster image probe, otherwise 0. */
@@ -68,6 +76,20 @@ QUIREWISE_IMAGE_API int qw_image_name_is_supported(const char *name);
 QUIREWISE_IMAGE_API int qw_image_decode(const void *data,
                                         size_t size,
                                         QwImage *out_image);
+
+/*
+ * Encode Gray8 or RGB24 pixels. PNG, BMP and baseline TIFF are implemented;
+ * JPEG and WebP currently return QW_IMAGE_ERR_UNSUPPORTED. The result is
+ * malloc-owned and must be released with qw_image_buffer_free().
+ */
+QUIREWISE_IMAGE_API int qw_image_encode(const QwImage *image,
+                                        QwImageEncodeFormat format,
+                                        uint8_t **out_data,
+                                        size_t *out_size);
+
+/* Release a buffer returned by qw_image_encode(). NULL is accepted. */
+QUIREWISE_IMAGE_API void qw_image_buffer_free(void *buffer);
+
 QUIREWISE_IMAGE_API void qw_image_free(QwImage *image);
 QUIREWISE_IMAGE_API const char *qw_image_status_string(int status);
 
