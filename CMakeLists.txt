@@ -83,6 +83,7 @@ set(QW_IMAGE_SOURCES
     src/formats/image/jpeg_encode.c
     src/formats/image/webp_encode.c
     src/formats/image/simple_encode.c
+    src/formats/image/gif_encode.c
     src/formats/image/jpeg_parser.c
     src/formats/image/jpeg_decoder.c
     src/formats/image/miff_codec.c

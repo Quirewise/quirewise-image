@@ -142,6 +142,80 @@ int main(void)
         qw_image_buffer_free(encoded);
     }
 
+    /* GIF: Gray8 uses the identity palette (exact), RGB24 uses a 3:3:2 cube
+     * with bin centers (lossy, checked with a tolerance). */
+    {
+        static uint8_t gray_gif[64];
+        QwImage gray_image;
+        uint8_t *encoded = NULL;
+        size_t encoded_size = 0u;
+        QwImage decoded;
+        int index;
+
+        for (index = 0; index < 64; ++index)
+            gray_gif[index] = (uint8_t)(index * 4);
+        memset(&gray_image, 0, sizeof(gray_image));
+        gray_image.pixels = gray_gif;
+        gray_image.size = sizeof(gray_gif);
+        gray_image.stride = 8u;
+        gray_image.width = 8u;
+        gray_image.height = 8u;
+        gray_image.format = QW_IMAGE_PIXEL_GRAY8;
+        if (qw_image_encode(&gray_image, QW_IMAGE_ENCODE_GIF, &encoded,
+                            &encoded_size) != QW_IMAGE_OK ||
+            !encoded || encoded_size < 6u ||
+            memcmp(encoded, "GIF89a", 6u) != 0)
+            fail("GIF encode failed");
+        memset(&decoded, 0, sizeof(decoded));
+        if (qw_image_decode(encoded, encoded_size, &decoded) != QW_IMAGE_OK ||
+            decoded.width != 8u || decoded.height != 8u || !decoded.pixels) {
+            qw_image_buffer_free(encoded);
+            fail("GIF did not decode");
+        }
+        for (index = 0; index < 64; ++index) {
+            int value = decoded.format == QW_IMAGE_PIXEL_GRAY8
+                            ? decoded.pixels[index]
+                            : decoded.pixels[index * 3];
+            if (value < (int)gray_gif[index] - 2 ||
+                value > (int)gray_gif[index] + 2) {
+                qw_image_free(&decoded);
+                qw_image_buffer_free(encoded);
+                fail("GIF gray value drifted");
+            }
+        }
+        qw_image_free(&decoded);
+        qw_image_buffer_free(encoded);
+
+        encoded = NULL;
+        encoded_size = 0u;
+        if (qw_image_encode(&rgb, QW_IMAGE_ENCODE_GIF, &encoded,
+                            &encoded_size) != QW_IMAGE_OK)
+            fail("RGB GIF encode failed");
+        memset(&decoded, 0, sizeof(decoded));
+        if (qw_image_decode(encoded, encoded_size, &decoded) != QW_IMAGE_OK ||
+            !decoded.pixels) {
+            qw_image_buffer_free(encoded);
+            fail("RGB GIF did not decode");
+        }
+        for (index = 0; index < 4; ++index) {
+            const uint8_t *actual =
+                decoded.pixels +
+                (size_t)(index / 2) * decoded.stride +
+                (size_t)(index % 2) * 3u;
+            const uint8_t *wanted = rgb_pixels + (size_t)index * 3u;
+            int channel;
+            for (channel = 0; channel < 3; ++channel) {
+                if (abs((int)actual[channel] - wanted[channel]) > 40) {
+                    qw_image_free(&decoded);
+                    qw_image_buffer_free(encoded);
+                    fail("RGB GIF color drifted too far");
+                }
+            }
+        }
+        qw_image_free(&decoded);
+        qw_image_buffer_free(encoded);
+    }
+
     /* Baseline JPEG is lossy: encode uniform 8x8 blocks so every pixel lands
      * in one DCT block, then check the decoded color within a tolerance. */
     {
