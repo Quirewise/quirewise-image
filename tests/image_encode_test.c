@@ -82,7 +82,9 @@ int main(void)
                                       QW_IMAGE_ENCODE_WEBP,
                                       QW_IMAGE_ENCODE_TGA,
                                       QW_IMAGE_ENCODE_QOI,
-                                      QW_IMAGE_ENCODE_PPM };
+                                      QW_IMAGE_ENCODE_PPM,
+                                      QW_IMAGE_ENCODE_SGI,
+                                      QW_IMAGE_ENCODE_PCX };
     size_t index;
 
     memset(&rgb, 0, sizeof(rgb));
@@ -142,6 +144,76 @@ int main(void)
         qw_image_buffer_free(encoded);
     }
 
+    /* HDR is Radiance RGBE (gamma + exponent quantization): use a tolerance. */
+    {
+        static uint8_t gray_hdr[64];
+        QwImage gray_image;
+        uint8_t *encoded = NULL;
+        size_t encoded_size = 0u;
+        QwImage decoded;
+        int index;
+
+        for (index = 0; index < 64; ++index)
+            gray_hdr[index] = (uint8_t)(index * 4);
+        memset(&gray_image, 0, sizeof(gray_image));
+        gray_image.pixels = gray_hdr;
+        gray_image.size = sizeof(gray_hdr);
+        gray_image.stride = 8u;
+        gray_image.width = 8u;
+        gray_image.height = 8u;
+        gray_image.format = QW_IMAGE_PIXEL_GRAY8;
+        if (qw_image_encode(&gray_image, QW_IMAGE_ENCODE_HDR, &encoded,
+                            &encoded_size) != QW_IMAGE_OK ||
+            !encoded ||
+            memcmp(encoded, "#?RADIANCE", 10u) != 0)
+            fail("HDR encode failed");
+        memset(&decoded, 0, sizeof(decoded));
+        if (qw_image_decode(encoded, encoded_size, &decoded) != QW_IMAGE_OK ||
+            decoded.width != 8u || decoded.height != 8u || !decoded.pixels) {
+            qw_image_buffer_free(encoded);
+            fail("HDR did not decode");
+        }
+        for (index = 0; index < 64; ++index) {
+            int value = decoded.pixels[(size_t)index * 3u];
+            if (value < (int)gray_hdr[index] - 12 ||
+                value > (int)gray_hdr[index] + 12) {
+                qw_image_free(&decoded);
+                qw_image_buffer_free(encoded);
+                fail("HDR gray value drifted");
+            }
+        }
+        qw_image_free(&decoded);
+        qw_image_buffer_free(encoded);
+
+        encoded = NULL;
+        encoded_size = 0u;
+        if (qw_image_encode(&rgb, QW_IMAGE_ENCODE_HDR, &encoded,
+                            &encoded_size) != QW_IMAGE_OK)
+            fail("RGB HDR encode failed");
+        memset(&decoded, 0, sizeof(decoded));
+        if (qw_image_decode(encoded, encoded_size, &decoded) != QW_IMAGE_OK ||
+            !decoded.pixels) {
+            qw_image_buffer_free(encoded);
+            fail("RGB HDR did not decode");
+        }
+        for (index = 0; index < 4; ++index) {
+            const uint8_t *actual =
+                decoded.pixels +
+                (size_t)(index / 2) * decoded.stride +
+                (size_t)(index % 2) * 3u;
+            const uint8_t *wanted = rgb_pixels + (size_t)index * 3u;
+            int channel;
+            for (channel = 0; channel < 3; ++channel) {
+                if (abs((int)actual[channel] - wanted[channel]) > 40) {
+                    qw_image_free(&decoded);
+                    qw_image_buffer_free(encoded);
+                    fail("RGB HDR color drifted too far");
+                }
+            }
+        }
+        qw_image_free(&decoded);
+        qw_image_buffer_free(encoded);
+    }
     /* GIF: Gray8 uses the identity palette (exact), RGB24 uses a 3:3:2 cube
      * with bin centers (lossy, checked with a tolerance). */
     {

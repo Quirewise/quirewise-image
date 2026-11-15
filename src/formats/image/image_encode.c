@@ -35,6 +35,12 @@ int qw_image_ppm_encode(const QwImage *image, uint8_t **out_data,
                         size_t *out_size);
 int qw_image_gif_encode(const QwImage *image, uint8_t **out_data,
                         size_t *out_size);
+int qw_image_hdr_encode(const QwImage *image, uint8_t **out_data,
+                        size_t *out_size);
+int qw_image_sgi_encode(const QwImage *image, uint8_t **out_data,
+                        size_t *out_size);
+int qw_image_pcx_encode(const QwImage *image, uint8_t **out_data,
+                        size_t *out_size);
 
 static void encode_write_u16le(uint8_t *out, uint32_t value)
 {
@@ -370,6 +376,12 @@ int qw_image_encode(const QwImage *image, QwImageEncodeFormat format,
         return qw_image_ppm_encode(image, out_data, out_size);
     case QW_IMAGE_ENCODE_GIF:
         return qw_image_gif_encode(image, out_data, out_size);
+    case QW_IMAGE_ENCODE_HDR:
+        return qw_image_hdr_encode(image, out_data, out_size);
+    case QW_IMAGE_ENCODE_SGI:
+        return qw_image_sgi_encode(image, out_data, out_size);
+    case QW_IMAGE_ENCODE_PCX:
+        return qw_image_pcx_encode(image, out_data, out_size);
     default:
         return image_buffer_free_ok(QW_IMAGE_ERR_INVALID_ARGUMENT, out_data,
                                     out_size);

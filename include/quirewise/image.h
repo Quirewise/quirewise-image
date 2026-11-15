@@ -65,7 +65,10 @@ typedef enum QwImageEncodeFormat {
     QW_IMAGE_ENCODE_TGA,
     QW_IMAGE_ENCODE_QOI,
     QW_IMAGE_ENCODE_PPM,
-    QW_IMAGE_ENCODE_GIF
+    QW_IMAGE_ENCODE_GIF,
+    QW_IMAGE_ENCODE_HDR,
+    QW_IMAGE_ENCODE_SGI,
+    QW_IMAGE_ENCODE_PCX
 } QwImageEncodeFormat;
 
 QUIREWISE_IMAGE_API uint32_t qw_image_abi_version(void);
