@@ -138,19 +138,105 @@ int main(void)
         qw_image_buffer_free(encoded);
     }
 
+    /* Baseline JPEG is lossy: encode uniform 8x8 blocks so every pixel lands
+     * in one DCT block, then check the decoded color within a tolerance. */
     {
+        static uint8_t red_pixels[8u * 8u * 3u];
+        static uint8_t gray_block[8u * 8u];
+        QwImage red;
+        QwImage gray_image;
+        uint8_t *encoded = NULL;
+        size_t encoded_size = 0u;
+        QwImage decoded;
+        int row;
+        int column;
+
+        memset(red_pixels, 0, sizeof(red_pixels));
+        memset(gray_block, 200, sizeof(gray_block));
+        for (row = 0; row < 8; ++row) {
+            for (column = 0; column < 8; ++column) {
+                red_pixels[(row * 8 + column) * 3u + 0u] = 255u;
+            }
+        }
+        memset(&red, 0, sizeof(red));
+        red.pixels = red_pixels;
+        red.size = sizeof(red_pixels);
+        red.stride = 24u;
+        red.width = 8u;
+        red.height = 8u;
+        red.format = QW_IMAGE_PIXEL_RGB24;
+        memset(&gray_image, 0, sizeof(gray_image));
+        gray_image.pixels = gray_block;
+        gray_image.size = sizeof(gray_block);
+        gray_image.stride = 8u;
+        gray_image.width = 8u;
+        gray_image.height = 8u;
+        gray_image.format = QW_IMAGE_PIXEL_GRAY8;
+
+        if (qw_image_encode(&red, QW_IMAGE_ENCODE_JPEG, &encoded,
+                            &encoded_size) != QW_IMAGE_OK ||
+            !encoded || encoded_size < 4u || encoded[0] != 0xffu ||
+            encoded[1] != 0xd8u)
+            fail("JPEG encode failed");
+        memset(&decoded, 0, sizeof(decoded));
+        if (qw_image_decode(encoded, encoded_size, &decoded) != QW_IMAGE_OK ||
+            decoded.width != 8u || decoded.height != 8u || !decoded.pixels) {
+            if (decoded.pixels) qw_image_free(&decoded);
+            qw_image_buffer_free(encoded);
+            fail("JPEG output did not decode");
+        }
+        for (row = 0; row < 8; ++row) {
+            for (column = 0; column < 8; ++column) {
+                const uint8_t *pixel = decoded.pixels +
+                                       (size_t)row * decoded.stride +
+                                       (size_t)column * 3u;
+                if (pixel[0] < 240u || pixel[1] > 20u || pixel[2] > 20u) {
+                    fprintf(stderr,
+                            "JPEG red block drifted: (%u,%u,%u) at %d,%d\n",
+                            pixel[0], pixel[1], pixel[2], row, column);
+                    qw_image_free(&decoded);
+                    qw_image_buffer_free(encoded);
+                    fail("JPEG color drifted");
+                }
+            }
+        }
+        qw_image_free(&decoded);
+        qw_image_buffer_free(encoded);
+
+        encoded = NULL;
+        encoded_size = 0u;
+        if (qw_image_encode(&gray_image, QW_IMAGE_ENCODE_JPEG, &encoded,
+                            &encoded_size) != QW_IMAGE_OK)
+            fail("gray JPEG encode failed");
+        memset(&decoded, 0, sizeof(decoded));
+        if (qw_image_decode(encoded, encoded_size, &decoded) != QW_IMAGE_OK ||
+            !decoded.pixels) {
+            if (decoded.pixels) qw_image_free(&decoded);
+            qw_image_buffer_free(encoded);
+            fail("gray JPEG did not decode");
+        }
+        for (row = 0; row < 8; ++row) {
+            for (column = 0; column < 8; ++column) {
+                unsigned value =
+                    decoded.pixels[(size_t)row * decoded.stride +
+                                   (size_t)column];
+                if (value < 185u || value > 215u) {
+                    qw_image_free(&decoded);
+                    qw_image_buffer_free(encoded);
+                    fail("gray JPEG value drifted");
+                }
+            }
+        }
+        qw_image_free(&decoded);
+        qw_image_buffer_free(encoded);
+    }    {
         uint8_t *encoded = (uint8_t *)1;
         size_t encoded_size = 7u;
 
-        if (qw_image_encode(&rgb, QW_IMAGE_ENCODE_JPEG, &encoded,
-                            &encoded_size) != QW_IMAGE_ERR_UNSUPPORTED)
-            fail("JPEG encoder was accepted");
-        if (encoded || encoded_size) fail("failed encode produced output");
-        encoded = (uint8_t *)1;
-        encoded_size = 7u;
         if (qw_image_encode(&rgb, QW_IMAGE_ENCODE_WEBP, &encoded,
                             &encoded_size) != QW_IMAGE_ERR_UNSUPPORTED)
             fail("WebP encoder was accepted");
+        if (encoded || encoded_size) fail("failed encode produced output");
     }
 
     if (qw_image_encode(NULL, QW_IMAGE_ENCODE_PNG, NULL, NULL) !=

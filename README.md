@@ -15,7 +15,7 @@ application repository.
   natural filename order.
 - Cleans up scanned grayscale pages: illumination normalisation, deskew, crop,
   perspective correction, dewarp, and double-page split.
-- Encodes Gray8 or RGB24 pixels as PNG, BMP or baseline TIFF.
+- Encodes Gray8 or RGB24 pixels as PNG, BMP, baseline TIFF or baseline JPEG.
 
 Decoding covers JPEG (baseline and progressive), PNG (APNG decodes its default
 image), MNG, GIF87a/89a (first frame), BMP, TIFF (first top-level IFD; none,
@@ -23,10 +23,10 @@ CCITT T.6, LZW, JPEG, Deflate and PackBits), WebP (VP8/VP8L/alpha, still only),
 JP2/J2K, PSD/PSB flattened composites, OpenEXR scanline images, Radiance HDR,
 Softimage PIC, TGA, PCX, PFM, DDS (DXT1/BC1), QOI, XPM, XBM, WBMP, PNM/PAM,
 ICO/CUR (first entry), SGI, Sun Raster, MIFF, DICOM (single-frame uncompressed)
-and XCF. The write side currently covers PNG (stored zlib), BMP (24-bit) and
-baseline TIFF (uncompressed); JPEG and WebP encoding are not implemented yet.
-It does **not** decode AVIF/HEIC/JPEG XL/camera RAW, decode animated WebP, or
-preserve EXIF/ICC metadata.
+and XCF. The write side covers PNG (stored zlib), BMP (24-bit), baseline TIFF
+(uncompressed) and baseline JPEG (JFIF 4:4:4, quality 85); WebP encoding is not
+implemented yet. It does **not** decode AVIF/HEIC/JPEG XL/camera RAW, decode
+animated WebP, or preserve EXIF/ICC metadata.
 
 ## Requirements
 
@@ -143,10 +143,11 @@ int main(int argc, char **argv)
   to 8-bit Gray8/RGB24.
 - `QwImage.pixels` belongs to the value and is released with `qw_image_free`.
   Input bytes are borrowed and may be freed after the call returns.
-- `qw_image_encode` writes PNG/BMP/TIFF and returns a malloc-owned buffer that
-  is released with `qw_image_buffer_free`. JPEG and WebP return
+- `qw_image_encode` writes PNG/BMP/TIFF/JPEG and returns a malloc-owned buffer
+  that is released with `qw_image_buffer_free`. WebP returns
   `QW_IMAGE_ERR_UNSUPPORTED`; no resampling, color conversion or metadata is
-  synthesized, and the stride may exceed the packed row size.
+  synthesized, and the stride may exceed the packed row size. JPEG output uses
+  the fixed quality 85, 4:4:4 chroma and the standard Huffman tables.
 - Decoding enforces a 32768-pixel maximum dimension and 20,000,000 decoded
   pixels, returning `QW_IMAGE_ERR_RESOURCE_LIMIT`.
 - `qw_image_folder_open` is non-recursive and keeps only names accepted by

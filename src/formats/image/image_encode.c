@@ -22,6 +22,10 @@
 
 #define QW_IMAGE_ENCODE_MAX_PIXELS ((size_t)64u * 1024u * 1024u)
 
+/* Baseline JPEG encoder (jpeg_encode.c). */
+int qw_image_jpeg_encode(const QwImage *image, uint8_t **out_data,
+                         size_t *out_size);
+
 static void encode_write_u16le(uint8_t *out, uint32_t value)
 {
     out[0] = (uint8_t)value;
@@ -345,6 +349,7 @@ int qw_image_encode(const QwImage *image, QwImageEncodeFormat format,
     case QW_IMAGE_ENCODE_TIFF:
         return image_encode_tiff(image, out_data, out_size);
     case QW_IMAGE_ENCODE_JPEG:
+        return qw_image_jpeg_encode(image, out_data, out_size);
     case QW_IMAGE_ENCODE_WEBP:
         return image_buffer_free_ok(QW_IMAGE_ERR_UNSUPPORTED, out_data,
                                     out_size);
