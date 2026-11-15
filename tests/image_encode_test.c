@@ -79,7 +79,10 @@ int main(void)
     QwImageEncodeFormat formats[] = { QW_IMAGE_ENCODE_PNG,
                                       QW_IMAGE_ENCODE_BMP,
                                       QW_IMAGE_ENCODE_TIFF,
-                                      QW_IMAGE_ENCODE_WEBP };
+                                      QW_IMAGE_ENCODE_WEBP,
+                                      QW_IMAGE_ENCODE_TGA,
+                                      QW_IMAGE_ENCODE_QOI,
+                                      QW_IMAGE_ENCODE_PPM };
     size_t index;
 
     memset(&rgb, 0, sizeof(rgb));

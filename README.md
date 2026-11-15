@@ -15,8 +15,8 @@ application repository.
   natural filename order.
 - Cleans up scanned grayscale pages: illumination normalisation, deskew, crop,
   perspective correction, dewarp, and double-page split.
-- Encodes Gray8 or RGB24 pixels as PNG, BMP, baseline TIFF, baseline JPEG or
-  lossless WebP (VP8L).
+- Encodes Gray8 or RGB24 pixels as PNG, BMP, baseline TIFF, baseline JPEG,
+  lossless WebP (VP8L), TGA, QOI or PPM.
 
 Decoding covers JPEG (baseline and progressive), PNG (APNG decodes its default
 image), MNG, GIF87a/89a (first frame), BMP, TIFF (first top-level IFD; none,
@@ -25,8 +25,9 @@ JP2/J2K, PSD/PSB flattened composites, OpenEXR scanline images, Radiance HDR,
 Softimage PIC, TGA, PCX, PFM, DDS (DXT1/BC1), QOI, XPM, XBM, WBMP, PNM/PAM,
 ICO/CUR (first entry), SGI, Sun Raster, MIFF, DICOM (single-frame uncompressed)
 and XCF. The write side covers PNG (stored zlib), BMP (24-bit), baseline TIFF
-(uncompressed), baseline JPEG (JFIF 4:4:4, quality 85) and lossless WebP (VP8L,
-no transforms/LZ77, fixed 8-bit codes). It does **not** decode AVIF/HEIC/JPEG
+(uncompressed), baseline JPEG (JFIF 4:4:4, quality 85), lossless WebP (VP8L,
+no transforms/LZ77, fixed 8-bit codes), uncompressed TGA, literal-only QOI and
+binary PPM (P6, Gray8 replicated). It does **not** decode AVIF/HEIC/JPEG
 XL/camera RAW, decode animated WebP, or preserve EXIF/ICC metadata.
 
 ## Requirements
@@ -144,7 +145,7 @@ int main(int argc, char **argv)
   to 8-bit Gray8/RGB24.
 - `QwImage.pixels` belongs to the value and is released with `qw_image_free`.
   Input bytes are borrowed and may be freed after the call returns.
-- `qw_image_encode` writes PNG/BMP/TIFF/JPEG/WebP and returns a malloc-owned
+- `qw_image_encode` writes PNG/BMP/TIFF/JPEG/WebP/TGA/QOI/PPM and returns a malloc-owned
   buffer that is released with `qw_image_buffer_free`. No resampling, color
   conversion or metadata is synthesized, and the stride may exceed the packed
   row size. JPEG output uses the fixed quality 85 with 4:4:4 chroma and the
