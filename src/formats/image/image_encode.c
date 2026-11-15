@@ -25,6 +25,8 @@
 /* Baseline JPEG encoder (jpeg_encode.c). */
 int qw_image_jpeg_encode(const QwImage *image, uint8_t **out_data,
                          size_t *out_size);
+int qw_image_webp_encode(const QwImage *image, uint8_t **out_data,
+                         size_t *out_size);
 
 static void encode_write_u16le(uint8_t *out, uint32_t value)
 {
@@ -351,8 +353,7 @@ int qw_image_encode(const QwImage *image, QwImageEncodeFormat format,
     case QW_IMAGE_ENCODE_JPEG:
         return qw_image_jpeg_encode(image, out_data, out_size);
     case QW_IMAGE_ENCODE_WEBP:
-        return image_buffer_free_ok(QW_IMAGE_ERR_UNSUPPORTED, out_data,
-                                    out_size);
+        return qw_image_webp_encode(image, out_data, out_size);
     default:
         return image_buffer_free_ok(QW_IMAGE_ERR_INVALID_ARGUMENT, out_data,
                                     out_size);

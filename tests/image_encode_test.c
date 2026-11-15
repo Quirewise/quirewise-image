@@ -78,7 +78,8 @@ int main(void)
     QwImage gray;
     QwImageEncodeFormat formats[] = { QW_IMAGE_ENCODE_PNG,
                                       QW_IMAGE_ENCODE_BMP,
-                                      QW_IMAGE_ENCODE_TIFF };
+                                      QW_IMAGE_ENCODE_TIFF,
+                                      QW_IMAGE_ENCODE_WEBP };
     size_t index;
 
     memset(&rgb, 0, sizeof(rgb));
@@ -229,14 +230,6 @@ int main(void)
         }
         qw_image_free(&decoded);
         qw_image_buffer_free(encoded);
-    }    {
-        uint8_t *encoded = (uint8_t *)1;
-        size_t encoded_size = 7u;
-
-        if (qw_image_encode(&rgb, QW_IMAGE_ENCODE_WEBP, &encoded,
-                            &encoded_size) != QW_IMAGE_ERR_UNSUPPORTED)
-            fail("WebP encoder was accepted");
-        if (encoded || encoded_size) fail("failed encode produced output");
     }
 
     if (qw_image_encode(NULL, QW_IMAGE_ENCODE_PNG, NULL, NULL) !=
