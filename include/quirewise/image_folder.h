@@ -42,7 +42,9 @@ typedef struct QwImageFolder {
     uint64_t total_bytes;
 } QwImageFolder;
 
+/*! Return the ABI version compiled into the installed image package. */
 uint32_t qw_image_folder_abi_version(void);
+/*! Return 1 when the path names a readable directory. */
 int qw_image_folder_is_directory(const char *path);
 
 /* Pass a zero-initialized output value. Lists supported raster-image names and Lists supported raster-image names in natural filename order. The directory is not traversed
@@ -50,7 +52,9 @@ int qw_image_folder_is_directory(const char *path);
 QwImageFolderStatus qw_image_folder_open(const char *path,
                                          const QwImageFolderOptions *options,
                                          QwImageFolder *out_folder);
+/*! Release a document returned by the parser; NULL is accepted. */
 void qw_image_folder_free(QwImageFolder *folder);
+/*! Return a static human-readable name for a status code. */
 const char *qw_image_folder_status_string(QwImageFolderStatus status);
 
 #ifdef __cplusplus
