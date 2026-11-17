@@ -46,7 +46,7 @@ typedef enum QwImagePixelFormat {
     QW_IMAGE_PIXEL_RGB24 = 2
 } QwImagePixelFormat;
 
-/* Decoded pixel storage is owned by this value and released with qw_image_free. */
+/*! Decoded pixel storage is owned by this value and released with qw_image_free. */
 typedef struct QwImage {
     uint8_t *pixels;
     size_t size;
@@ -71,20 +71,24 @@ typedef enum QwImageEncodeFormat {
     QW_IMAGE_ENCODE_PCX
 } QwImageEncodeFormat;
 
+/*! Return the ABI version compiled into the installed image package. */
 QUIREWISE_IMAGE_API uint32_t qw_image_abi_version(void);
 
-/* Returns 1 when the input matches a supported raster image probe, otherwise 0. */
+/*! Returns 1 when the input matches a supported raster image probe, otherwise 0. */
 QUIREWISE_IMAGE_API int qw_image_probe(const void *data, size_t size);
 
-/* Returns 1 when a path has a supported raster-image filename extension. */
+/*! Returns 1 when a path has a supported raster-image filename extension. */
 QUIREWISE_IMAGE_API int qw_image_name_is_supported(const char *name);
 
-/* Decodes one still image to owned Gray8 or RGB24 pixels. */
+/*! Decodes one still image to owned Gray8 or RGB24 pixels. On success the
+ *  pixels are released with qw_image_free(); the format field is Gray8 or
+ *  RGB24 and stride covers one row in bytes. */
+
 QUIREWISE_IMAGE_API int qw_image_decode(const void *data,
                                         size_t size,
                                         QwImage *out_image);
 
-/*
+/*!
  * Encode Gray8 or RGB24 pixels as PNG, BMP, baseline TIFF, baseline JPEG,
  * lossless WebP (VP8L), TGA, QOI, PPM, single-frame GIF, Radiance HDR, SGI RGB
  * or RLE PCX. GIF is single-frame and WebP carries no animation/EXIF/ICC. The
@@ -95,10 +99,13 @@ QUIREWISE_IMAGE_API int qw_image_encode(const QwImage *image,
                                         uint8_t **out_data,
                                         size_t *out_size);
 
-/* Release a buffer returned by qw_image_encode(). NULL is accepted. */
+/*! Release a buffer returned by qw_image_encode(). NULL is accepted. */
 QUIREWISE_IMAGE_API void qw_image_buffer_free(void *buffer);
 
+/*! Release pixels returned by qw_image_decode(); NULL is accepted and the
+ *  struct is reset so a second call is safe. */
 QUIREWISE_IMAGE_API void qw_image_free(QwImage *image);
+/*! Return a static human-readable name for an image status code. */
 QUIREWISE_IMAGE_API const char *qw_image_status_string(int status);
 
 #ifdef __cplusplus
