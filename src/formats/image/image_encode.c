@@ -142,7 +142,7 @@ static int image_encode_png(const QwImage *image, uint8_t **out_data,
         *target++ = 0u; /* filter: None */
         memcpy(target, image->pixels + row * image->stride, row_bytes);
     }
-    zlib_capacity = qw_compression_zlib_stored_bound(raw_size);
+    zlib_capacity = qw_compression_zlib_bound(raw_size);
     if (zlib_capacity == SIZE_MAX) {
         free(raw);
         return (int)QW_IMAGE_ERR_RESOURCE_LIMIT;
@@ -152,8 +152,8 @@ static int image_encode_png(const QwImage *image, uint8_t **out_data,
         free(raw);
         return (int)QW_IMAGE_ERR_OUT_OF_MEMORY;
     }
-    if (!qw_compression_deflate_zlib_stored(raw, raw_size, zlib_data,
-                                            zlib_capacity, &zlib_size)) {
+    if (!qw_compression_deflate_zlib(raw, raw_size, zlib_data,
+                                     zlib_capacity, &zlib_size)) {
         free(raw);
         free(zlib_data);
         return (int)QW_IMAGE_ERR_OUT_OF_MEMORY;

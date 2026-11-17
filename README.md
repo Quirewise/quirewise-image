@@ -25,7 +25,7 @@ CCITT T.6, LZW, JPEG, Deflate and PackBits), WebP (VP8/VP8L/alpha, still only),
 JP2/J2K, PSD/PSB flattened composites, OpenEXR scanline images, Radiance HDR,
 Softimage PIC, TGA, PCX, PFM, DDS (DXT1/BC1), QOI, XPM, XBM, WBMP, PNM/PAM,
 ICO/CUR (first entry), SGI, Sun Raster, MIFF, DICOM (single-frame uncompressed)
-and XCF. The write side covers PNG (stored zlib), BMP (24-bit), baseline TIFF
+and XCF. The write side covers PNG (deflate-compressed IDAT), BMP (24-bit), baseline TIFF
 (uncompressed), baseline JPEG (JFIF 4:4:4, quality 85), lossless WebP (VP8L,
 no transforms/LZ77, fixed 8-bit codes), uncompressed TGA, literal-only QOI,
 binary PPM (P6, Gray8 replicated), and single-frame GIF with the standard LZW
