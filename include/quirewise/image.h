@@ -85,9 +85,10 @@ QUIREWISE_IMAGE_API int qw_image_decode(const void *data,
                                         QwImage *out_image);
 
 /*
- * Encode Gray8 or RGB24 pixels. PNG, BMP and baseline TIFF are implemented;
- * JPEG and WebP currently return QW_IMAGE_ERR_UNSUPPORTED. The result is
- * malloc-owned and must be released with qw_image_buffer_free().
+ * Encode Gray8 or RGB24 pixels as PNG, BMP, baseline TIFF, baseline JPEG,
+ * lossless WebP (VP8L), TGA, QOI, PPM, single-frame GIF, Radiance HDR, SGI RGB
+ * or RLE PCX. GIF is single-frame and WebP carries no animation/EXIF/ICC. The
+ * result is malloc-owned and must be released with qw_image_buffer_free().
  */
 QUIREWISE_IMAGE_API int qw_image_encode(const QwImage *image,
                                         QwImageEncodeFormat format,

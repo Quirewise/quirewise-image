@@ -1,7 +1,8 @@
 # quirewise-image
 
-Still-image probing and decoding, non-recursive image-folder enumeration, and
-bounded grayscale scan cleanup for Quirewise. No external codec is linked.
+Still-image probing, decoding and encoding, non-recursive image-folder
+enumeration, and bounded grayscale scan cleanup for Quirewise. No external
+codec is linked.
 
 `Quirewise::Image` is an independent, MIT-licensed C11 library. It is installed
 as a CMake package (`QuirewiseImage`) and can be consumed without the Quirewise
