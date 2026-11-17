@@ -49,26 +49,33 @@ typedef enum QwGrayImageSplitSide {
     QW_GRAY_IMAGE_SPLIT_RIGHT = 1
 } QwGrayImageSplitSide;
 
+/*! Return the ABI version compiled into the installed image-processing package. */
 QUIREWISE_IMAGE_PROCESSING_API uint32_t qw_image_processing_abi_version(void);
 
-/* Copy or adopt tightly packed Gray8 pixels. The destination must be empty and
- * zero-initialized. On adopt success, ownership transfers to out_image. */
+/*! Copy tightly packed Gray8 pixels into an empty, zero-initialized value. */
 QUIREWISE_IMAGE_PROCESSING_API QwImageProcessingStatus qw_gray_image_copy(
     const uint8_t *pixels, size_t size, uint32_t width, uint32_t height,
     QwGrayImage *out_image);
+/*! Adopt a malloc-owned Gray8 buffer into an empty, zero-initialized value. */
 QUIREWISE_IMAGE_PROCESSING_API QwImageProcessingStatus qw_gray_image_adopt(
     uint8_t *pixels, size_t size, uint32_t width, uint32_t height,
     QwGrayImage *out_image);
+/*! Release pixels and reset the value; NULL is accepted. */
 QUIREWISE_IMAGE_PROCESSING_API void qw_gray_image_release(QwGrayImage *image);
 
+/*! Flatten uneven scan illumination before thresholding. */
 QUIREWISE_IMAGE_PROCESSING_API QwImageProcessingStatus
 qw_gray_image_normalize_illumination(QwGrayImage *image);
+/*! Rotate the page so text baselines are horizontal. */
 QUIREWISE_IMAGE_PROCESSING_API QwImageProcessingStatus qw_gray_image_deskew(
     QwGrayImage *image);
+/*! Crop the page to its content plus the requested padding in pixels. */
 QUIREWISE_IMAGE_PROCESSING_API QwImageProcessingStatus qw_gray_image_crop(
     QwGrayImage *image, unsigned padding);
+/*! Rectify a page photographed at an angle into a rectangular image. */
 QUIREWISE_IMAGE_PROCESSING_API QwImageProcessingStatus
 qw_gray_image_correct_perspective(QwGrayImage *image);
+/*! Remove page curvature from a photographed or scanned book page. */
 QUIREWISE_IMAGE_PROCESSING_API QwImageProcessingStatus qw_gray_image_dewarp(
     QwGrayImage *image);
 
@@ -79,6 +86,7 @@ qw_gray_image_split_copy(const QwGrayImage *image,
                          QwGrayImageSplitSide side,
                          QwGrayImage *out_image);
 
+/*! Return a static human-readable name for a status code. */
 QUIREWISE_IMAGE_PROCESSING_API const char *qw_image_processing_status_string(
     int status);
 
