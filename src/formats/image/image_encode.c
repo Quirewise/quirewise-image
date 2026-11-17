@@ -6,7 +6,8 @@
  * - PNG: color types 0/2, filter 0 rows, a zlib-stored IDAT (no compression
  *   dependency beyond the internal stored-deflate helper).
  * - BMP: 24-bit BGR, bottom-up rows, 54-byte header.
- * - TIFF: baseline little-endian, uncompressed, one strip.
+ * - TIFF: baseline little-endian, one strip, Deflate-compressed when that
+ *   shrinks the strip (Compression=8) and uncompressed otherwise.
  *
  * JPEG and WebP output are not implemented yet; they report UNSUPPORTED so a
  * caller never receives a mislabeled stream.
@@ -288,36 +289,70 @@ static int image_encode_tiff(const QwImage *image, uint8_t **out_data,
     size_t ifd_offset;
     size_t extra_offset;
     size_t total;
+    size_t strip_size;
+    uint8_t *raw = NULL;
+    uint8_t *compressed = NULL;
+    const uint8_t *strip;
     uint8_t *tiff;
     size_t row;
+    uint16_t compression = 1u;
 
     if (!image_channels(image, &channels, &row_bytes))
         return (int)QW_IMAGE_ERR_INVALID_ARGUMENT;
     if (row_bytes > SIZE_MAX / image->height)
         return (int)QW_IMAGE_ERR_RESOURCE_LIMIT;
     pixel_bytes = row_bytes * image->height;
-    bits_offset = 8u + pixel_bytes + (pixel_bytes % 2u);
+    raw = (uint8_t *)malloc(pixel_bytes ? pixel_bytes : 1u);
+    if (!raw) return (int)QW_IMAGE_ERR_OUT_OF_MEMORY;
+    for (row = 0u; row < image->height; ++row) {
+        memcpy(raw + row * row_bytes, image->pixels + row * image->stride,
+               row_bytes);
+    }
+    strip = raw;
+    strip_size = pixel_bytes;
+    {
+        size_t bound = qw_compression_zlib_bound(pixel_bytes);
+        if (bound != SIZE_MAX) compressed = (uint8_t *)malloc(bound);
+        if (compressed) {
+            size_t produced = 0u;
+            if (qw_compression_deflate_zlib(raw, pixel_bytes, compressed,
+                                            bound, &produced) &&
+                produced < pixel_bytes) {
+                strip = compressed;
+                strip_size = produced;
+                compression = 8u; /* Adobe Deflate */
+            } else {
+                free(compressed);
+                compressed = NULL;
+            }
+        }
+    }
+    bits_offset = 8u + strip_size + (strip_size % 2u);
     ifd_offset = bits_offset + (channels == 3u ? 6u : 0u);
     if (ifd_offset % 2u) ++ifd_offset;
     extra_offset = ifd_offset + QW_TIFF_IFD_BYTES;
-    if (extra_offset > SIZE_MAX - 8u)
+    if (extra_offset > SIZE_MAX - 8u) {
+        free(raw);
+        free(compressed);
         return (int)QW_IMAGE_ERR_RESOURCE_LIMIT;
+    }
     total = extra_offset;
     tiff = (uint8_t *)malloc(total);
-    if (!tiff) return (int)QW_IMAGE_ERR_OUT_OF_MEMORY;
+    if (!tiff) {
+        free(raw);
+        free(compressed);
+        return (int)QW_IMAGE_ERR_OUT_OF_MEMORY;
+    }
     memset(tiff, 0, total);
     tiff[0] = 'I';
     tiff[1] = 'I';
     encode_write_u16le(tiff + 2u, 42u);
     encode_write_u32le(tiff + 4u, (uint32_t)ifd_offset);
-    for (row = 0u; row < image->height; ++row) {
-        memcpy(tiff + 8u + row * row_bytes,
-               image->pixels + row * image->stride, row_bytes);
-    }
+    if (strip_size) memcpy(tiff + 8u, strip, strip_size);
     if (channels == 3u) {
-        encode_write_u16le(tiff + 8u + pixel_bytes, 8u);
-        encode_write_u16le(tiff + 8u + pixel_bytes + 2u, 8u);
-        encode_write_u16le(tiff + 8u + pixel_bytes + 4u, 8u);
+        encode_write_u16le(tiff + bits_offset, 8u);
+        encode_write_u16le(tiff + bits_offset + 2u, 8u);
+        encode_write_u16le(tiff + bits_offset + 4u, 8u);
     }
     {
         uint8_t *ifd = tiff + ifd_offset;
@@ -328,19 +363,21 @@ static int image_encode_tiff(const QwImage *image, uint8_t **out_data,
         tiff_entry(ifd + 2u, entry++, 257u, 4u, 1u, image->height);
         if (channels == 3u) {
             tiff_entry(ifd + 2u, entry++, 258u, 3u, 3u,
-                       (uint32_t)(8u + pixel_bytes));
+                       (uint32_t)bits_offset);
         } else {
             tiff_entry(ifd + 2u, entry++, 258u, 3u, 1u, 8u);
         }
-        tiff_entry(ifd + 2u, entry++, 259u, 3u, 1u, 1u); /* no compression */
+        tiff_entry(ifd + 2u, entry++, 259u, 3u, 1u, compression);
         tiff_entry(ifd + 2u, entry++, 262u, 3u, 1u,
                    channels == 3u ? 2u : 1u); /* RGB or black-is-zero */
         tiff_entry(ifd + 2u, entry++, 273u, 4u, 1u, 8u);
         tiff_entry(ifd + 2u, entry++, 277u, 3u, 1u, (uint32_t)channels);
         tiff_entry(ifd + 2u, entry++, 278u, 4u, 1u, image->height);
-        tiff_entry(ifd + 2u, entry++, 279u, 4u, 1u, (uint32_t)pixel_bytes);
+        tiff_entry(ifd + 2u, entry++, 279u, 4u, 1u, (uint32_t)strip_size);
         encode_write_u32le(ifd + 2u + entry * 12u, 0u); /* next IFD */
     }
+    free(raw);
+    free(compressed);
     *out_data = tiff;
     *out_size = total;
     return (int)QW_IMAGE_OK;

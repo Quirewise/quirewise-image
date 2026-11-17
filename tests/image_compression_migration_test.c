@@ -363,6 +363,64 @@ static int test_jpeg_stream_path(void)
     return ok;
 }
 
+
+static int contains_bytes(const uint8_t *data, size_t size,
+                          const uint8_t *needle, size_t needle_size)
+{
+    size_t index;
+    if (!needle_size || needle_size > size) return 0;
+    for (index = 0u; index + needle_size <= size; ++index) {
+        if (memcmp(data + index, needle, needle_size) == 0) return 1;
+    }
+    return 0;
+}
+
+static int test_tiff_encode_deflate(void)
+{
+    QwImage image;
+    QwImage decoded;
+    uint8_t pixels[64u * 64u * 3u];
+    static const uint8_t compression_tag[12] = {
+        0x03u, 0x01u, 0x03u, 0x00u, 0x01u, 0x00u,
+        0x00u, 0x00u, 0x08u, 0x00u, 0x00u, 0x00u
+    };
+    uint8_t *encoded = NULL;
+    size_t encoded_size = 0u;
+    size_t index;
+    size_t row;
+    int status;
+
+    for (index = 0u; index < sizeof(pixels); ++index) {
+        pixels[index] = (uint8_t)((index / 3u) % 251u);
+    }
+    memset(&image, 0, sizeof(image));
+    image.width = 64u;
+    image.height = 64u;
+    image.stride = 64u * 3u;
+    image.pixels = pixels;
+    image.format = QW_IMAGE_PIXEL_RGB24;
+    status = qw_image_encode(&image, QW_IMAGE_ENCODE_TIFF, &encoded,
+                             &encoded_size);
+    CHECK(status == QW_IMAGE_OK);
+    CHECK(encoded != NULL && encoded_size > 8u);
+    CHECK(encoded_size < sizeof(pixels));
+    CHECK(contains_bytes(encoded, encoded_size, compression_tag,
+                         sizeof(compression_tag)));
+
+    memset(&decoded, 0, sizeof(decoded));
+    status = qw_image_decode(encoded, encoded_size, &decoded);
+    CHECK(status == QW_IMAGE_OK);
+    CHECK(decoded.width == image.width && decoded.height == image.height);
+    CHECK(decoded.format == QW_IMAGE_PIXEL_RGB24);
+    for (row = 0u; row < image.height; ++row) {
+        CHECK(memcmp(decoded.pixels + row * decoded.stride,
+                     pixels + row * image.stride, image.stride) == 0);
+    }
+    qw_image_free(&decoded);
+    qw_image_buffer_free(encoded);
+    return 1;
+}
+
 int main(void)
 {
     if (!test_png_zlib_path()) return 1;
@@ -371,5 +429,6 @@ int main(void)
     if (!test_tiff_deflate_variant(1)) return 1;
     if (!test_tiff_jpeg_tables_path()) return 1;
     if (!test_jpeg_stream_path()) return 1;
+    if (!test_tiff_encode_deflate()) return 1;
     return 0;
 }
