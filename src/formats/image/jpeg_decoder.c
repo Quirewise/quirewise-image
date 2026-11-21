@@ -1,7 +1,7 @@
 /* First-party JPEG decoder.
  *
  * Supports baseline (SOF0) and progressive (SOF2) Huffman-coded images with
- * 8-bit samples, 1..3 components (grayscale, YCbCr), 1x/2x chroma sampling,
+ * 8-bit samples, 1..4 components (grayscale, YCbCr, CMYK/YCCK), 1x/2x chroma sampling,
  * restart intervals and both sequential and progressive scans. The IDCT is a
  * straightforward separable double-precision transform; chroma upsampling
  * uses the standard 3:1 triangle filter for 2x sampling. */
@@ -359,7 +359,7 @@ static int jpeg_parse_sof(QwJpegDecoder *d, int marker, const uint8_t *segment,
     d->height = (segment[1] << 8) | segment[2];
     d->width = (segment[3] << 8) | segment[4];
     n = segment[5];
-    if (n < 1 || n > 3) return -1;
+    if (n < 1 || n > QW_JPEG_MAX_COMPONENTS) return -1;
     if ((size_t)(6 + n * 3) != size) return -1;
     if (d->width <= 0 || d->height <= 0) return -1;
     if ((size_t)d->width * (size_t)d->height > QW_JPEG_MAX_PIXELS) return -1;
@@ -702,9 +702,7 @@ int qw_jpeg_decode(const uint8_t *data, size_t size, QwJpegImage *out_image)
     QwJpegDecoder d;
     int marker;
     int seen_sof = 0;
-    uint8_t *row_y = NULL;
-    uint8_t *row_cb = NULL;
-    uint8_t *row_cr = NULL;
+    uint8_t *rows[4] = {NULL, NULL, NULL, NULL};
     int channels;
     uint8_t *pixels = NULL;
     size_t pixel_count;
@@ -865,19 +863,23 @@ int qw_jpeg_decode(const uint8_t *data, size_t size, QwJpegImage *out_image)
     pixels = (uint8_t *)malloc(pixel_count * (size_t)channels);
     if (!pixels) goto fail;
 
-    row_y = (uint8_t *)malloc((size_t)d.width);
-    row_cb = channels == 3 ? (uint8_t *)malloc((size_t)d.width) : NULL;
-    row_cr = channels == 3 ? (uint8_t *)malloc((size_t)d.width) : NULL;
-    if (!row_y || (channels == 3 && (!row_cb || !row_cr))) {
-        free(row_y);
-        free(row_cb);
-        free(row_cr);
-        free(pixels);
-        goto fail;
+    {
+        int c;
+        for (c = 0; c < 4; ++c) rows[c] = NULL;
+        for (c = 0; c < d.ncomp && c < 4; ++c) {
+            rows[c] = (uint8_t *)malloc((size_t)d.width);
+            if (!rows[c]) {
+                for (c = 0; c < 4; ++c) free(rows[c]);
+                free(pixels);
+                goto fail;
+            }
+        }
     }
 
     {
         int rgb_direct = 0;
+        int cmyk = d.ncomp == 4;
+        int ycck = cmyk && d.saw_adobe && d.adobe_transform == 2;
         if (d.ncomp == 3) {
             if (d.saw_adobe) {
                 rgb_direct = d.adobe_transform == 0;
@@ -887,46 +889,78 @@ int qw_jpeg_decode(const uint8_t *data, size_t size, QwJpegImage *out_image)
             }
         }
         for (y = 0; y < d.height; ++y) {
-            jpeg_upsample_row(&d.comp[0], d.max_h, d.max_v, y, d.width, row_y);
-        if (channels == 3) {
-            jpeg_upsample_row(&d.comp[1], d.max_h, d.max_v, y, d.width, row_cb);
-            jpeg_upsample_row(&d.comp[2], d.max_h, d.max_v, y, d.width, row_cr);
-        }
-        for (x = 0; x < d.width; ++x) {
-            if (channels == 1) {
-                pixels[(size_t)y * (size_t)d.width + (size_t)x] = row_y[x];
-            } else if (rgb_direct) {
-                uint8_t *dst = pixels +
-                               ((size_t)y * (size_t)d.width + (size_t)x) * 3u;
-                dst[0] = row_y[x];
-                dst[1] = row_cb[x];
-                dst[2] = row_cr[x];
-            } else {
-                int yy = row_y[x];
-                int cb = row_cb[x] - 128;
-                int cr = row_cr[x] - 128;
-                int r = yy + (int)(1.402 * cr + 0.5);
-                int g = yy - (int)(0.344136 * cb + 0.714136 * cr + 0.5);
-                int b = yy + (int)(1.772 * cb + 0.5);
-                uint8_t *dst = pixels + ((size_t)y * (size_t)d.width +
-                                         (size_t)x) * 3u;
-                if (r < 0) r = 0;
-                else if (r > 255) r = 255;
-                if (g < 0) g = 0;
-                else if (g > 255) g = 255;
-                if (b < 0) b = 0;
-                else if (b > 255) b = 255;
-                dst[0] = (uint8_t)r;
-                dst[1] = (uint8_t)g;
-                dst[2] = (uint8_t)b;
-            }
+            int c;
+            for (c = 0; c < d.ncomp && c < 4; ++c)
+                jpeg_upsample_row(&d.comp[c], d.max_h, d.max_v, y, d.width,
+                                  rows[c]);
+            for (x = 0; x < d.width; ++x) {
+                if (channels == 1) {
+                    pixels[(size_t)y * (size_t)d.width + (size_t)x] =
+                        rows[0][x];
+                } else if (cmyk) {
+                    int k = rows[3][x];
+                    int r = rows[0][x];
+                    int g = rows[1][x];
+                    int b = rows[2][x];
+                    uint8_t *dst;
+                    if (ycck) {
+                        int yy = rows[0][x];
+                        int cb = rows[1][x] - 128;
+                        int cr = rows[2][x] - 128;
+                        r = yy + (int)(1.402 * cr + 0.5);
+                        g = yy - (int)(0.344136 * cb + 0.714136 * cr + 0.5);
+                        b = yy + (int)(1.772 * cb + 0.5);
+                    }
+                    /* Adobe CMYK JPEGs store inverted samples. */
+                    r = r * k / 255;
+                    g = g * k / 255;
+                    b = b * k / 255;
+                    if (r < 0) r = 0;
+                    else if (r > 255) r = 255;
+                    if (g < 0) g = 0;
+                    else if (g > 255) g = 255;
+                    if (b < 0) b = 0;
+                    else if (b > 255) b = 255;
+                    dst = pixels +
+                          ((size_t)y * (size_t)d.width + (size_t)x) * 3u;
+                    dst[0] = (uint8_t)r;
+                    dst[1] = (uint8_t)g;
+                    dst[2] = (uint8_t)b;
+                } else if (rgb_direct) {
+                    uint8_t *dst = pixels +
+                                   ((size_t)y * (size_t)d.width + (size_t)x) *
+                                       3u;
+                    dst[0] = rows[0][x];
+                    dst[1] = rows[1][x];
+                    dst[2] = rows[2][x];
+                } else {
+                    int yy = rows[0][x];
+                    int cb = rows[1][x] - 128;
+                    int cr = rows[2][x] - 128;
+                    int r = yy + (int)(1.402 * cr + 0.5);
+                    int g = yy - (int)(0.344136 * cb + 0.714136 * cr + 0.5);
+                    int b = yy + (int)(1.772 * cb + 0.5);
+                    uint8_t *dst = pixels +
+                                   ((size_t)y * (size_t)d.width + (size_t)x) *
+                                       3u;
+                    if (r < 0) r = 0;
+                    else if (r > 255) r = 255;
+                    if (g < 0) g = 0;
+                    else if (g > 255) g = 255;
+                    if (b < 0) b = 0;
+                    else if (b > 255) b = 255;
+                    dst[0] = (uint8_t)r;
+                    dst[1] = (uint8_t)g;
+                    dst[2] = (uint8_t)b;
+                }
             }
         }
     }
 
-    free(row_y);
-    free(row_cb);
-    free(row_cr);
+    {
+        int c;
+        for (c = 0; c < 4; ++c) free(rows[c]);
+    }
     out_image->pixels = pixels;
     out_image->size = pixel_count * (size_t)channels;
     out_image->width = d.width;
@@ -949,9 +983,10 @@ fail:
             free(d.comp[c].plane);
         }
     }
-    free(row_y);
-    free(row_cb);
-    free(row_cr);
+    {
+        int c;
+        for (c = 0; c < 4; ++c) free(rows[c]);
+    }
     free(pixels);
     return -1;
 }
